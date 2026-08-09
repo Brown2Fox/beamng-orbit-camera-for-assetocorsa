@@ -1,14 +1,16 @@
 # BeamNG.drive Orbit Camera for Assetto Corsa
 
-![](res/draft_logo.png?raw=true)
-
+<p align="center">
+  <img src="res/draft_logo.png?raw=true" width="20%">
+</p>
+  
 I like the orbit camera in BeamNG.drive, so I decided to port its behavior to Assetto Corsa and share the result.
 
 The goal of this mod is to reproduce the original BeamNG.drive orbit camera as closely as possible while adapting it to the APIs and limitations available in Assetto Corsa and CSP.
 
 ## Showcase
 
-[![Watch the video](https://img.youtube.com/vi/bgEGF9AT-Ps/maxresdefault.jpg)](https://youtu.be/bgEGF9AT-Ps)
+[![Watch the video](https://img.youtube.com/vi/bgEGF9AT-Ps/0.jpg)](https://youtu.be/bgEGF9AT-Ps)
 
 ## Description
 
