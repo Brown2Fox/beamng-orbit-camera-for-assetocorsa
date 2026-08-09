@@ -10,7 +10,9 @@ The goal of this mod is to reproduce the original BeamNG.drive orbit camera as c
 
 ## Showcase
 
-[![Watch the video](https://img.youtube.com/vi/bgEGF9AT-Ps/0.jpg)](https://youtu.be/bgEGF9AT-Ps)
+[![](https://img.youtube.com/vi/bgEGF9AT-Ps/0.jpg)](https://youtu.be/bgEGF9AT-Ps)
+
+![Watch the video](https://youtu.be/bgEGF9AT-Ps)
 
 ## Description
 
