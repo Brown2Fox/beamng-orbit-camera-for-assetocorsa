@@ -1143,11 +1143,14 @@ function update(dt, cameraIndex)
   local dynamicPitchAngle = 0
   if dynamicPitchBlend > 0.0001 and runtimeConfig.dynamicPitchAtSpeed > 0 then
     local pitchLimit = calculateDynamicPitchLimit(targetPos, runtimeConfig.cameraFov)
-    dynamicPitchAngle = math.min(math.rad(runtimeConfig.dynamicPitchAtSpeed), pitchLimit) * dynamicPitchBlend
+    -- BeamNG applies dynamic pitch with a negative angle. With AC's Y-up
+    -- coordinate system and cameraRight axis this pitches the view upward,
+    -- moving the vehicle lower on screen just like orbit.lua.
+    dynamicPitchAngle = -math.min(math.rad(runtimeConfig.dynamicPitchAtSpeed), pitchLimit) * dynamicPitchBlend
   end
 
   WORLD_UP:cross(baseDirection, cameraRight)
-  if #cameraRight > 0.0001 and dynamicPitchAngle > 0.000001 then
+  if #cameraRight > 0.0001 and math.abs(dynamicPitchAngle) > 0.000001 then
     cameraRight:normalize()
     baseDirection:rotate(quat.fromAngleAxis(dynamicPitchAngle, cameraRight), finalDirection)
     finalDirection:normalize()
