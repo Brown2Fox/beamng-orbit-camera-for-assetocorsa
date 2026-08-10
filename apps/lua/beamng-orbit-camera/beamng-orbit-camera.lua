@@ -125,7 +125,7 @@ local pitchTotal = controlsBridge.pitchTotal or 0
 local zoomTotal = controlsBridge.zoomTotal or 0
 local zoomDistanceTotal = controlsBridge.zoomDistanceTotal or 0
 
-local MODIFIED_PARAM_COLOR = rgbm(204 / 255, 17 / 255, 26 / 255, 1)
+local MODIFIED_PARAM_COLOR = rgbm.colors.yellow
 
 local function publishParams()
   paramsBridge.ready = false
@@ -317,30 +317,17 @@ local function resetCameraParams()
 end
 
 ---@param key string
-local function drawParamLabel(key)
+---@param highlightIfModified boolean
+local function drawParamLabel(key, highlightIfModified)
   local param = getParam(key)
   if param == nil then return end
 
-  local modified = isParamModified(key)
-  if modified then
+  if highlightIfModified and isParamModified(key) then
     ui.pushStyleColor(ui.StyleColor.Text, MODIFIED_PARAM_COLOR)
     ui.text(param.displayName)
     ui.popStyleColor()
   else
     ui.text(param.displayName)
-  end
-
-  if modified then
-    local hovered = ui.itemHovered()
-    ui.itemPopup('reset_' .. key, ui.MouseButton.Right, function()
-      if ui.selectable('Reset to default') then
-        resetParam(key)
-      end
-    end)
-
-    if hovered then
-      ui.setTooltip('Modified from default. Right-click to reset.')
-    end
   end
 end
 
@@ -355,18 +342,19 @@ local function drawBinding(label, description, button)
 end
 
 ---@param key string
-local function drawParamAsSlider(key)
+---@param highlightIfModified boolean
+local function drawParamAsSlider(key, highlightIfModified)
   local param = getParam(key)
   if param == nil or param.kind ~= 'slider' then return end
 
   local valueObj = paramStorage[key]
   local valueNum = tonumber(valueObj:get()) or param.defaultValue
-  local modified = isParamModified(key)
+  local needHighlight = highlightIfModified and isParamModified(key)
 
-  drawParamLabel(key)
+  drawParamLabel(key, highlightIfModified)
   ui.sameLine(230)
 
-  if modified then
+  if needHighlight then
     ui.pushStyleColor(ui.StyleColor.Text, MODIFIED_PARAM_COLOR)
   end
 
@@ -378,8 +366,12 @@ local function drawParamAsSlider(key)
     param.format
   )
 
-  if modified then
+  if needHighlight then
     ui.popStyleColor()
+  end
+
+  if ui.itemHovered() and ui.mouseDown(ui.MouseButton.Right) then
+    resetParam(key)
   end
 
   if changed then
@@ -388,26 +380,31 @@ local function drawParamAsSlider(key)
 end
 
 ---@param key string
-local function drawParamAsScheme(key)
+---@param highlightIfModified boolean
+local function drawParamAsScheme(key, highlightIfModified)
   local param = getParam(key)
   if param == nil or param.kind ~= 'scheme' then return end
 
   local valueObj = paramStorage[key]
   local value = getParamValue(key)
-  local modified = isParamModified(key)
+  local needHighlight = highlightIfModified and isParamModified(key)
 
-  drawParamLabel(key)
+  drawParamLabel(key, highlightIfModified)
   ui.sameLine(230)
   ui.pushItemWidth(ui.availableSpaceX())
 
-  if modified then
+  if needHighlight then
     ui.pushStyleColor(ui.StyleColor.Text, MODIFIED_PARAM_COLOR)
   end
 
   local comboOpen = ui.beginCombo('##' .. key, param.options[value])
 
-  if modified then
+  if needHighlight then
     ui.popStyleColor()
+  end
+
+  if ui.itemHovered() and ui.mouseDown(ui.MouseButton.Right) then
+    resetParam(key)
   end
 
   if comboOpen then
@@ -435,19 +432,19 @@ local function drawCameraTab()
   ui.text('Camera')
   ui.separator()
 
-  drawParamAsSlider('cameraDistance')
-  drawParamAsSlider('cameraFov')
-  drawParamAsSlider('cameraPitch')
-  drawParamAsSlider('cameraTargetHeightOffset')
-  drawParamAsSlider('cameraRelaxation')
+  drawParamAsSlider('cameraDistance', true)
+  drawParamAsSlider('cameraFov', true)
+  drawParamAsSlider('cameraPitch', true)
+  drawParamAsSlider('cameraTargetHeightOffset', true)
+  drawParamAsSlider('cameraRelaxation', true)
 
   ui.newLine()
   ui.text('At speed')
   ui.separator()
 
-  drawParamAsSlider('dynamicFovAtSpeed')
-  drawParamAsSlider('dynamicPitchAtSpeed')
-  drawParamAsSlider('dynamicHeightAtSpeed')
+  drawParamAsSlider('dynamicFovAtSpeed', true)
+  drawParamAsSlider('dynamicPitchAtSpeed', true)
+  drawParamAsSlider('dynamicHeightAtSpeed', true)
 
   ui.newLine()
   if ui.button('Reset all to defaults', vec2(ui.availableSpaceX(), 0)) then
@@ -512,7 +509,7 @@ local function drawControlsTab()
   ui.text('Gamepad')
   ui.separator()
 
-  drawParamAsScheme('gamepadControlScheme')
+  drawParamAsScheme('gamepadControlScheme', false)
 
   local controlScheme = getParamValue('gamepadControlScheme')
   if controlScheme >= 2 then
@@ -521,12 +518,12 @@ local function drawControlsTab()
 
   if controlScheme ~= 0 then
     ui.treeNode('Advanced', function()
-      drawParamAsSlider('orbitStickDeadzone')
-      drawParamAsSlider('orbitStickExponent')
+      drawParamAsSlider('orbitStickDeadzone', true)
+      drawParamAsSlider('orbitStickExponent', true)
 
       if controlScheme >= 2 then
-        drawParamAsSlider('zoomStickDeadzone')
-        drawParamAsSlider('zoomStickExponent')
+        drawParamAsSlider('zoomStickDeadzone', true)
+        drawParamAsSlider('zoomStickExponent', true)
       end
     end)
   end
@@ -536,7 +533,7 @@ local function drawControlsTab()
   ui.text('Mouse')
   ui.separator()
 
-  drawParamAsScheme('mouseControlScheme')
+  drawParamAsScheme('mouseControlScheme', false)
 end
 
 ---@param dt number
