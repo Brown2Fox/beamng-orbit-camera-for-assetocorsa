@@ -13,17 +13,18 @@
 --   * target/rendered rotation separation matches BeamNG camRot/camLastRot smoothing.
 --------
 
--- Camera and input settings are owned by the companion Lua App so they can
--- be edited live while a session is running. These defaults are also used if
--- the app is unavailable.
+-- Camera settings are owned by the companion Lua App so they can be edited
+-- live while a session is running. App/bridge angles are user-facing degrees;
+-- orientation angles are converted once on sync and stored here in radians.
+-- These defaults are also used if the app is unavailable.
 local runtimeConfig = {
   cameraDistance = 5.0,
   cameraFov = 65.0,
   cameraTargetHeightOffset = 0.0,
-  cameraPitch = 17.0,
+  cameraPitchRad = math.rad(17.0),
   cameraRelaxation = 6.0,
   dynamicFovAtSpeed = 40.0,
-  dynamicPitchAtSpeed = 7.0,
+  dynamicPitchAtSpeedRad = math.rad(7.0),
   dynamicHeightAtSpeed = 0.4,
 }
 
@@ -31,7 +32,7 @@ local runtimeConfig = {
 
 local VEC3_ZERO = vec3(0, 0, 0)
 local WORLD_UP = vec3(0, 1, 0)
-local INPUT_EPSILON = 0.0001
+local INPUT_ANGLE_EPSILON_RAD = 0.0001
 local EPSILON = 1e-30
 
 local CAMERA_DISTANCE_MIN = 3.0
@@ -49,14 +50,6 @@ local DYNAMIC_PITCH_LOW_SPEED_DELAY = 1.5
 local DYNAMIC_PITCH_RISE_RATE = 0.30
 local DYNAMIC_PITCH_FALL_RATE = 0.50
 
-local function configuredPitchRad()
-  return math.clamp(
-    math.rad(runtimeConfig.cameraPitch),
-    CAMERA_PITCH_MIN_RAD,
-    CAMERA_PITCH_MAX_RAD
-  )
-end
-
 -- BeamNG collision.lua constants. BeamNG computes its longitudinal plane
 -- offset as data.res.nearClip - 0.1. CSP chaser-camera does not expose that
 -- value here, so keep the plane centered on the desired camera position rather
@@ -67,7 +60,7 @@ local COLLISION_NEAR_CLIP_HALF_HEIGHT = 0.1
 local COLLISION_MIN_HIT_DISTANCE = 0.5
 local COLLISION_RELEASE_RATE = 7.0
 
-local MANUAL_YAW_LOCK_THRESHOLD = math.rad(10)
+local MANUAL_YAW_LOCK_THRESHOLD_RAD = math.rad(10)
 
 -- The Lua App owns persistent configuration and ControlButton input. Camera
 -- parameters and live controls use separate shared structures.
@@ -79,8 +72,8 @@ local paramsBridgeInitialized = false
 
 local lastControlsBridgeSeqNum = 0
 local controlsBridgeInitialized = false
-local lastYawTotal = 0.0
-local lastPitchTotal = 0.0
+local lastYawTotalRad = 0.0
+local lastPitchTotalRad = 0.0
 local lastZoomTotal = 0.0
 local lastZoomDistanceTotal = 0.0
 local lastRecenterSeqNum = 0
@@ -109,8 +102,8 @@ do
       ac.StructItem.key('beamng_orbit_camera.controls_bridge'),
       seqNum = ac.StructItem.uint32(),
 
-      yawTotal = ac.StructItem.double(),
-      pitchTotal = ac.StructItem.double(),
+      yawTotalRad = ac.StructItem.double(),
+      pitchTotalRad = ac.StructItem.double(),
       zoomTotal = ac.StructItem.double(),
       zoomDistanceTotal = ac.StructItem.double(),
 
@@ -122,12 +115,12 @@ do
 end
 
 -- BeamNG keeps a target rotation (camRot) and a separately smoothed
--- rendered rotation (camLastRot). orbitYaw/orbitPitch are targets;
--- displayedYaw/displayedPitch are the rendered equivalents.
-local orbitYaw = 0.0
-local orbitPitch = 0.0
-local displayedYaw = 0.0
-local displayedPitch = 0.0
+-- rendered rotation (camLastRot). orbitYawRad/orbitPitchRad are targets;
+-- displayedYawRad/displayedPitchRad are the rendered equivalents.
+local orbitYawRad = 0.0
+local orbitPitchRad = 0.0
+local displayedYawRad = 0.0
+local displayedPitchRad = 0.0
 local orbitDistance = 0.0
 local displayedDistance = 0.0
 local orbitInitialized = false
@@ -136,7 +129,7 @@ local orbitInitialized = false
 -- direction reversal swaps the internal heading hemisphere while preserving
 -- the same world-space camera view.
 local lockCamera = false
-local accumulatedManualYaw = 0.0
+local accumulatedManualYawRad = 0.0
 local lastAppliedFov = runtimeConfig.cameraFov
 
 -- BeamNG equivalents:
@@ -248,7 +241,7 @@ local function resetCameraState()
   orbitInitialized = false
 
   lockCamera = false
-  accumulatedManualYaw = 0.0
+  accumulatedManualYawRad = 0.0
   lastAppliedFov = runtimeConfig.cameraFov
 
   headingReference:set(0, 0, 1)
@@ -303,37 +296,37 @@ local function syncCameraParams()
   local cameraDistance = paramsBridge.cameraDistance
   local cameraFov = paramsBridge.cameraFov
   local cameraTargetHeightOffset = paramsBridge.cameraTargetHeightOffset
-  local cameraPitch = paramsBridge.cameraPitch
+  local cameraPitchRad = math.rad(paramsBridge.cameraPitch)
   local cameraRelaxation = paramsBridge.cameraRelaxation
   local dynamicFovAtSpeed = paramsBridge.dynamicFovAtSpeed
-  local dynamicPitchAtSpeed = paramsBridge.dynamicPitchAtSpeed
+  local dynamicPitchAtSpeedRad = math.rad(paramsBridge.dynamicPitchAtSpeed)
   local dynamicHeightAtSpeed = paramsBridge.dynamicHeightAtSpeed
 
   local seqNumAfter = tonumber(paramsBridge.seqNum) or 0
   if seqNumBefore ~= seqNumAfter or paramsBridge.ready ~= true then return end
 
   local distanceChanged = math.abs(cameraDistance - runtimeConfig.cameraDistance) > 0.000001
-  local pitchChanged = math.abs(cameraPitch - runtimeConfig.cameraPitch) > 0.000001
+  local pitchChanged = math.abs(cameraPitchRad - runtimeConfig.cameraPitchRad) > 0.000001
 
   runtimeConfig.cameraDistance = cameraDistance
   runtimeConfig.cameraFov = cameraFov
   runtimeConfig.cameraTargetHeightOffset = cameraTargetHeightOffset
-  runtimeConfig.cameraPitch = cameraPitch
+  runtimeConfig.cameraPitchRad = cameraPitchRad
   runtimeConfig.cameraRelaxation = cameraRelaxation
   runtimeConfig.dynamicFovAtSpeed = dynamicFovAtSpeed
-  runtimeConfig.dynamicPitchAtSpeed = dynamicPitchAtSpeed
+  runtimeConfig.dynamicPitchAtSpeedRad = dynamicPitchAtSpeedRad
   runtimeConfig.dynamicHeightAtSpeed = dynamicHeightAtSpeed
 
   if orbitInitialized then
     if distanceChanged then orbitDistance = cameraDistance end
-    if pitchChanged then orbitPitch = configuredPitchRad() end
+    if pitchChanged then orbitPitchRad = cameraPitchRad end
   end
 
   lastParamsBridgeSeqNum = seqNumAfter
   paramsBridgeInitialized = true
 end
 
----@return number yawStep, number pitchStep, number zoomStep, number zoomDistanceStep, boolean recenterPressed, boolean recenterKeepValuesPressed
+---@return number yawStepRad, number pitchStepRad, number zoomStep, number zoomDistanceStep, boolean recenterPressed, boolean recenterKeepValuesPressed
 local function readControlsInput()
   if controlsBridge == nil then return 0, 0, 0, 0, false, false end
 
@@ -342,8 +335,8 @@ local function readControlsInput()
     return 0, 0, 0, 0, false, false
   end
 
-  local yawTotal = controlsBridge.yawTotal or 0
-  local pitchTotal = controlsBridge.pitchTotal or 0
+  local yawTotalRad = controlsBridge.yawTotalRad or 0
+  local pitchTotalRad = controlsBridge.pitchTotalRad or 0
   local zoomTotal = controlsBridge.zoomTotal or 0
   local zoomDistanceTotal = controlsBridge.zoomDistanceTotal or 0
   local recenterSeqNum = tonumber(controlsBridge.recenterSeqNum) or 0
@@ -356,8 +349,8 @@ local function readControlsInput()
 
   if not controlsBridgeInitialized then
     lastControlsBridgeSeqNum = seqNumAfter
-    lastYawTotal = yawTotal
-    lastPitchTotal = pitchTotal
+    lastYawTotalRad = yawTotalRad
+    lastPitchTotalRad = pitchTotalRad
     lastZoomTotal = zoomTotal
     lastZoomDistanceTotal = zoomDistanceTotal
     lastRecenterSeqNum = recenterSeqNum
@@ -366,16 +359,16 @@ local function readControlsInput()
     return 0, 0, 0, 0, false, false
   end
 
-  local yawStep = yawTotal - lastYawTotal
-  local pitchStep = pitchTotal - lastPitchTotal
+  local yawStepRad = yawTotalRad - lastYawTotalRad
+  local pitchStepRad = pitchTotalRad - lastPitchTotalRad
   local zoomStep = zoomTotal - lastZoomTotal
   local zoomDistanceStep = zoomDistanceTotal - lastZoomDistanceTotal
   local recenterPressed = recenterSeqNum ~= lastRecenterSeqNum
   local recenterKeepValuesPressed = recenterKeepValuesSeqNum ~= lastRecenterKeepValuesSeqNum
 
   lastControlsBridgeSeqNum = seqNumAfter
-  lastYawTotal = yawTotal
-  lastPitchTotal = pitchTotal
+  lastYawTotalRad = yawTotalRad
+  lastPitchTotalRad = pitchTotalRad
   lastZoomTotal = zoomTotal
   lastZoomDistanceTotal = zoomDistanceTotal
   lastRecenterSeqNum = recenterSeqNum
@@ -383,14 +376,14 @@ local function readControlsInput()
 
   -- If the app/shared bridge was recreated and cumulative totals restarted,
   -- discard the discontinuity instead of producing a camera jump.
-  if math.abs(yawStep) > math.pi * 4
-      or math.abs(pitchStep) > math.pi * 4
+  if math.abs(yawStepRad) > math.pi * 4
+      or math.abs(pitchStepRad) > math.pi * 4
       or math.abs(zoomStep) > 10
       or math.abs(zoomDistanceStep) > 100 then
     return 0, 0, 0, 0, recenterPressed, recenterKeepValuesPressed
   end
 
-  return yawStep, pitchStep, zoomStep, zoomDistanceStep, recenterPressed, recenterKeepValuesPressed
+  return yawStepRad, pitchStepRad, zoomStep, zoomDistanceStep, recenterPressed, recenterKeepValuesPressed
 end
 
 ---@param source vec3
@@ -402,17 +395,17 @@ local function planarHeading(source)
   return result / length
 end
 
----@param angle number
+---@param angleRad number
 ---@return number
-local function wrapAngle(angle)
-  return (angle + math.pi) % (2 * math.pi) - math.pi
+local function wrapAngle(angleRad)
+  return (angleRad + math.pi) % (2 * math.pi) - math.pi
 end
 
----@param currentAngle number
----@param targetAngle number
+---@param currentAngleRad number
+---@param targetAngleRad number
 ---@return number
-local function shortestAngleDifference(currentAngle, targetAngle)
-  return (targetAngle - currentAngle + math.pi) % (2 * math.pi) - math.pi
+local function shortestAngleDifference(currentAngleRad, targetAngleRad)
+  return (targetAngleRad - currentAngleRad + math.pi) % (2 * math.pi) - math.pi
 end
 
 ---@param from vec3
@@ -500,10 +493,10 @@ local function handleLockedCameraHemisphere(targetPos)
   if tmpMoveDirection:dot(lockedCameraDirection) < 0 then
     -- BeamNG applies the hemisphere flip to both camRot and camLastRot.
     -- Updating both target and rendered yaw should preserve the current world view.
-    orbitYaw = wrapAngle(orbitYaw + math.pi)
-    displayedYaw = wrapAngle(displayedYaw + math.pi)
+    orbitYawRad = wrapAngle(orbitYawRad + math.pi)
+    displayedYawRad = wrapAngle(displayedYawRad + math.pi)
 
-    -- CSP adaptation: orbitYaw is a rotation around fixed WORLD_UP (Y). A 180°
+    -- CSP adaptation: orbitYawRad is a rotation around fixed WORLD_UP (Y). A 180°
     -- yaw negates X/Z but preserves Y. Simply moving the anchor by the full
     -- lockedCameraDirection would also negate its vertical component when
     -- updateMovementHeading() rebuilds targetPos - camAnchor, producing an
@@ -618,9 +611,9 @@ end
 local function requestRecenter(keepPitchAndDistance, targetPos, carHeading)
   -- BeamNG reset() immediately sets camRot to its target defaults while
   -- preserving the current rendered view in camLastRot/camLastDist. Recreate
-  -- that separation here: displayedYaw/displayedPitch stay at the current view,
-  -- while orbitYaw/orbitPitch become the new targets.
-  headingReference:rotate(quat.fromAngleAxis(displayedYaw, WORLD_UP), recenterWorldForward)
+  -- that separation here: displayedYawRad/displayedPitchRad stay at the current view,
+  -- while orbitYawRad/orbitPitchRad become the new targets.
+  headingReference:rotate(quat.fromAngleAxis(displayedYawRad, WORLD_UP), recenterWorldForward)
   if #recenterWorldForward > 0.0001 then
     recenterWorldForward:normalize()
   else
@@ -628,18 +621,18 @@ local function requestRecenter(keepPitchAndDistance, targetPos, carHeading)
   end
 
   initializeHeading(targetPos, carHeading)
-  displayedYaw = signedHeadingError(carHeading, recenterWorldForward)
-  orbitYaw = 0.0
+  displayedYawRad = signedHeadingError(carHeading, recenterWorldForward)
+  orbitYawRad = 0.0
 
   if keepPitchAndDistance then
-    orbitPitch = displayedPitch
+    orbitPitchRad = displayedPitchRad
   else
-    orbitPitch = configuredPitchRad()
+    orbitPitchRad = runtimeConfig.cameraPitchRad
     orbitDistance = runtimeConfig.cameraDistance
   end
 
   lockCamera = false
-  accumulatedManualYaw = 0.0
+  accumulatedManualYawRad = 0.0
   resetCollisionState()
 end
 
@@ -661,7 +654,7 @@ end
 ---@param manualRotationActive boolean
 ---@param dt number
 local function updateDynamicPitchState(speed, manualRotationActive, dt)
-  if runtimeConfig.dynamicPitchAtSpeed <= 0 then
+  if runtimeConfig.dynamicPitchAtSpeedRad <= 0 then
     abovePitchSpeedThreshold = false
     belowPitchThresholdTimer = nil
     dynamicPitchBlend = 0.0
@@ -749,13 +742,13 @@ local function calculateDynamicPitchLimit(targetPos, baseFov)
   -- BeamNG calculates this limit from the *default* orbit pose rather than the
   -- current manually rotated/zoomed camera. Our positive pitch convention is
   -- the sign-inverted equivalent of BeamNG's defaultRotation.y.
-  local defaultPitch = configuredPitchRad()
+  local defaultPitchRad = runtimeConfig.cameraPitchRad
   local defaultDistance = runtimeConfig.cameraDistance
 
   defaultCameraOffsetLocal:set(
     0,
-    math.sin(defaultPitch) * defaultDistance,
-    -math.cos(defaultPitch) * defaultDistance
+    math.sin(defaultPitchRad) * defaultDistance,
+    -math.cos(defaultPitchRad) * defaultDistance
   )
   car.bodyTransform:transformVectorTo(defaultCameraOffsetWorld, defaultCameraOffsetLocal)
 
@@ -771,8 +764,8 @@ local function calculateDynamicPitchLimit(targetPos, baseFov)
 
   toTarget:set(toTarget / targetLength)
   toRearBottom:set(toRearBottom / rearLength)
-  local separationAngle = math.acos(math.clamp(toTarget:dot(toRearBottom), -1, 1))
-  return math.max(math.rad(baseFov * 0.5) - separationAngle, 0)
+  local separationAngleRad = math.acos(math.clamp(toTarget:dot(toRearBottom), -1, 1))
+  return math.max(math.rad(baseFov * 0.5) - separationAngleRad, 0)
 end
 
 ---@param targetDistance number
@@ -1009,10 +1002,10 @@ function update(dt, cameraIndex)
   end
 
   if not orbitInitialized then
-    orbitPitch = configuredPitchRad()
-    displayedPitch = orbitPitch
-    orbitYaw = 0
-    displayedYaw = 0
+    orbitPitchRad = runtimeConfig.cameraPitchRad
+    displayedPitchRad = orbitPitchRad
+    orbitYawRad = 0
+    displayedYawRad = 0
     orbitDistance = runtimeConfig.cameraDistance
     displayedDistance = orbitDistance
     orbitInitialized = true
@@ -1035,7 +1028,7 @@ function update(dt, cameraIndex)
   updateRearReference()
   handleLockedCameraHemisphere(targetPos)
   updateMovementHeading(targetPos, carHeading, dt)
-  local manualYawStep, manualPitchStep, zoomStep, zoomDistanceStep,
+  local manualYawStepRad, manualPitchStepRad, zoomStep, zoomDistanceStep,
       recenterPressed, recenterKeepValuesPressed = readControlsInput()
 
   updateControlButtons(
@@ -1045,24 +1038,24 @@ function update(dt, cameraIndex)
     recenterKeepValuesPressed
   )
 
-  local manualRotationActive = math.abs(manualYawStep) > INPUT_EPSILON
-    or math.abs(manualPitchStep) > INPUT_EPSILON
+  local manualRotationActive = math.abs(manualYawStepRad) > INPUT_ANGLE_EPSILON_RAD
+    or math.abs(manualPitchStepRad) > INPUT_ANGLE_EPSILON_RAD
 
   -- BeamNG applies manual input to target camRot directly. Device-specific
   -- interpretation has already happened in the Lua App.
-  orbitYaw = wrapAngle(orbitYaw + manualYawStep)
-  orbitPitch = math.clamp(
-    orbitPitch + manualPitchStep,
+  orbitYawRad = wrapAngle(orbitYawRad + manualYawStepRad)
+  orbitPitchRad = math.clamp(
+    orbitPitchRad + manualPitchStepRad,
     CAMERA_PITCH_MIN_RAD,
     CAMERA_PITCH_MAX_RAD
   )
 
   -- BeamNG enables lockCamera only after more than 10 degrees of accumulated
   -- manual horizontal rotation. Pitch and zoom do not affect this state.
-  if math.abs(manualYawStep) > INPUT_EPSILON then
-    accumulatedManualYaw = accumulatedManualYaw + manualYawStep
+  if math.abs(manualYawStepRad) > INPUT_ANGLE_EPSILON_RAD then
+    accumulatedManualYawRad = accumulatedManualYawRad + manualYawStepRad
   end
-  if math.abs(accumulatedManualYaw) > MANUAL_YAW_LOCK_THRESHOLD then
+  if math.abs(accumulatedManualYawRad) > MANUAL_YAW_LOCK_THRESHOLD_RAD then
     lockCamera = true
   end
 
@@ -1073,17 +1066,17 @@ function update(dt, cameraIndex)
   -- dt*8 interpolation as the visible smoothing. With no input, yaw catch-up
   -- is capped at 4.5 rad/s exactly like orbit.lua.
   local rotationSmoothingT = (dt * 8) / (1 + dt * 8)
-  local maxRenderedYawSpeed = manualRotationActive and 1000 or 4.5
-  local yawError = shortestAngleDifference(displayedYaw, orbitYaw)
-  local renderedYawStep = math.clamp(
-    yawError * rotationSmoothingT,
-    -maxRenderedYawSpeed * dt,
-    maxRenderedYawSpeed * dt
+  local maxRenderedYawSpeedRadPerSec = manualRotationActive and 1000 or 4.5
+  local yawErrorRad = shortestAngleDifference(displayedYawRad, orbitYawRad)
+  local renderedYawStepRad = math.clamp(
+    yawErrorRad * rotationSmoothingT,
+    -maxRenderedYawSpeedRadPerSec * dt,
+    maxRenderedYawSpeedRadPerSec * dt
   )
 
-  displayedYaw = wrapAngle(displayedYaw + renderedYawStep)
-  displayedPitch = math.clamp(
-    displayedPitch + (orbitPitch - displayedPitch) * rotationSmoothingT,
+  displayedYawRad = wrapAngle(displayedYawRad + renderedYawStepRad)
+  displayedPitchRad = math.clamp(
+    displayedPitchRad + (orbitPitchRad - displayedPitchRad) * rotationSmoothingT,
     CAMERA_PITCH_MIN_RAD,
     CAMERA_PITCH_MAX_RAD
   )
@@ -1110,7 +1103,7 @@ function update(dt, cameraIndex)
 
   updateDynamicPitchState(carSpeed, manualRotationActive, dt)
 
-  headingReference:rotate(quat.fromAngleAxis(displayedYaw, WORLD_UP), orbitForward)
+  headingReference:rotate(quat.fromAngleAxis(displayedYawRad, WORLD_UP), orbitForward)
   orbitForward:normalize()
 
   local dynamicFov, dynamicDistance = calculateDynamicFovAndDistance(
@@ -1119,8 +1112,8 @@ function update(dt, cameraIndex)
     carSpeed,
     targetPos
   )
-  local horizontalDistance = math.cos(displayedPitch) * dynamicDistance
-  local verticalDistance = math.sin(displayedPitch) * dynamicDistance
+  local horizontalDistance = math.cos(displayedPitchRad) * dynamicDistance
+  local verticalDistance = math.sin(displayedPitchRad) * dynamicDistance
 
   baseCameraPosition:set(
     targetPos
@@ -1140,19 +1133,19 @@ function update(dt, cameraIndex)
     baseDirection:set(orbitForward)
   end
 
-  local dynamicPitchAngle = 0
-  if dynamicPitchBlend > 0.0001 and runtimeConfig.dynamicPitchAtSpeed > 0 then
-    local pitchLimit = calculateDynamicPitchLimit(targetPos, runtimeConfig.cameraFov)
+  local dynamicPitchAngleRad = 0
+  if dynamicPitchBlend > 0.0001 and runtimeConfig.dynamicPitchAtSpeedRad > 0 then
+    local pitchLimitRad = calculateDynamicPitchLimit(targetPos, runtimeConfig.cameraFov)
     -- BeamNG applies dynamic pitch with a negative angle. With AC's Y-up
     -- coordinate system and cameraRight axis this pitches the view upward,
     -- moving the vehicle lower on screen just like orbit.lua.
-    dynamicPitchAngle = -math.min(math.rad(runtimeConfig.dynamicPitchAtSpeed), pitchLimit) * dynamicPitchBlend
+    dynamicPitchAngleRad = -math.min(runtimeConfig.dynamicPitchAtSpeedRad, pitchLimitRad) * dynamicPitchBlend
   end
 
   WORLD_UP:cross(baseDirection, cameraRight)
-  if #cameraRight > 0.0001 and math.abs(dynamicPitchAngle) > 0.000001 then
+  if #cameraRight > 0.0001 and math.abs(dynamicPitchAngleRad) > 0.000001 then
     cameraRight:normalize()
-    baseDirection:rotate(quat.fromAngleAxis(dynamicPitchAngle, cameraRight), finalDirection)
+    baseDirection:rotate(quat.fromAngleAxis(dynamicPitchAngleRad, cameraRight), finalDirection)
     finalDirection:normalize()
   else
     finalDirection:set(baseDirection)

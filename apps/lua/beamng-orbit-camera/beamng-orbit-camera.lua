@@ -111,8 +111,8 @@ local controlsBridge = ac.connect({
   ac.StructItem.key('beamng_orbit_camera.controls_bridge'),
   seqNum = ac.StructItem.uint32(),
 
-  yawTotal = ac.StructItem.double(),
-  pitchTotal = ac.StructItem.double(),
+  yawTotalRad = ac.StructItem.double(),
+  pitchTotalRad = ac.StructItem.double(),
   zoomTotal = ac.StructItem.double(),
   zoomDistanceTotal = ac.StructItem.double(),
 
@@ -120,8 +120,8 @@ local controlsBridge = ac.connect({
   recenterKeepValuesSeqNum = ac.StructItem.uint32(),
 }, false, ac.SharedNamespace.Shared)
 
-local yawTotal = controlsBridge.yawTotal or 0
-local pitchTotal = controlsBridge.pitchTotal or 0
+local yawTotalRad = controlsBridge.yawTotalRad or 0
+local pitchTotalRad = controlsBridge.pitchTotalRad or 0
 local zoomTotal = controlsBridge.zoomTotal or 0
 local zoomDistanceTotal = controlsBridge.zoomDistanceTotal or 0
 
@@ -247,8 +247,8 @@ local function publishControls(dt)
   local pitchInput = math.clamp(gamepadPitchInput + buttonPitchInput, -1, 1)
   local zoomInput = math.clamp(gamepadZoomInput + readButtonZoom(), -1, 1)
 
-  local yawStep = yawInput * ORBIT_YAW_SPEED_RAD * dt
-  local pitchStep = pitchInput * ORBIT_PITCH_SPEED_RAD * dt
+  local yawStepRad = yawInput * ORBIT_YAW_SPEED_RAD * dt
+  local pitchStepRad = pitchInput * ORBIT_PITCH_SPEED_RAD * dt
   local zoomStep = zoomInput * dt
   local zoomDistanceStep = 0
 
@@ -261,19 +261,19 @@ local function publishControls(dt)
       local mouseDelta = ac.accessMouseDelta('camera', true, false)
       local mouseWheelDelta = ui.mouseWheel() or 0
 
-      yawStep = yawStep - (mouseDelta.x or 0) * MOUSE_ORBIT_SENSITIVITY_RAD
-      pitchStep = pitchStep + (mouseDelta.y or 0) * MOUSE_ORBIT_SENSITIVITY_RAD
+      yawStepRad = yawStepRad - (mouseDelta.x or 0) * MOUSE_ORBIT_SENSITIVITY_RAD
+      pitchStepRad = pitchStepRad + (mouseDelta.y or 0) * MOUSE_ORBIT_SENSITIVITY_RAD
       zoomDistanceStep = -mouseWheelDelta * MOUSE_ZOOM_WHEEL_STEP
     end
   end
 
-  yawTotal = yawTotal + yawStep
-  pitchTotal = pitchTotal + pitchStep
+  yawTotalRad = yawTotalRad + yawStepRad
+  pitchTotalRad = pitchTotalRad + pitchStepRad
   zoomTotal = zoomTotal + zoomStep
   zoomDistanceTotal = zoomDistanceTotal + zoomDistanceStep
 
-  controlsBridge.yawTotal = yawTotal
-  controlsBridge.pitchTotal = pitchTotal
+  controlsBridge.yawTotalRad = yawTotalRad
+  controlsBridge.pitchTotalRad = pitchTotalRad
   controlsBridge.zoomTotal = zoomTotal
   controlsBridge.zoomDistanceTotal = zoomDistanceTotal
 
