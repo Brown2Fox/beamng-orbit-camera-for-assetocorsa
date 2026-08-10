@@ -153,7 +153,7 @@ local function shapeGamepadAxis(value, deadzone, exponent)
   return math.sign(value) * normalized ^ exponent
 end
 
----@param stickIndex integer
+---@param stickIndex integer 0 — Left, 1 — Right
 ---@return number x, number y
 local function readGamepadStick(stickIndex)
   if type(ac.getGamepadAxisValue) ~= 'function' then return 0, 0 end
@@ -171,7 +171,7 @@ local function readGamepadStick(stickIndex)
   return ac.getGamepadAxisValue(0, xAxis) or 0, ac.getGamepadAxisValue(0, yAxis) or 0
 end
 
----@param stickIndex integer
+---@param stickIndex integer 0 — Left, 1 — Right
 ---@return number
 local function readZoomAxis(stickIndex)
   local _, y = readGamepadStick(stickIndex)
@@ -229,15 +229,15 @@ local function publishControls(dt)
 
   if zoomModifierButton:down() then
     if gamepadControlScheme == 2 then
-      -- Right stick remains yaw/pitch orbit; modifier + left-stick Y adds zoom.
+      -- Right Stick — Orbit; Zoom modifier + Left Stick Y — Zoom.
       gamepadZoomInput = readZoomAxis(0)
     elseif gamepadControlScheme == 3 then
-      -- Modifier changes right-stick Y from pitch to zoom while X remains yaw.
+      -- Right Stick — Orbit; Zoom modifier + Right Stick Y — Zoom
+      gamepadYawInput = 0
       gamepadPitchInput = 0
       gamepadZoomInput = readZoomAxis(1)
     elseif gamepadControlScheme == 4 then
-      -- Modifier changes right-stick Y to zoom and suppresses both orbit axes.
-      gamepadYawInput = 0
+      -- Right Stick — Orbit; Zoom modifier + Right Stick — Zoom + Yaw
       gamepadPitchInput = 0
       gamepadZoomInput = readZoomAxis(1)
     end
