@@ -34,7 +34,6 @@ This is a nearly 1:1 behavioral port of the BeamNG.drive orbit camera. The follo
 - Dynamic camera height at speed
 - Dynamic FOV at speed
 - Dolly-zoom distance compensation
-- BeamNG-style target/render rotation separation
 - Smooth rendered yaw behavior
 - Near-clip-aware camera collisions
 - Collision pull-in and smooth release
@@ -49,8 +48,9 @@ The mod consists of two parts:
 
 ## How to install
 
-The easiest way to install the mod is to drag the archive into Content Manager and install it normally. Content Manager should handle the files automatically.
-You can also install it manually: extract the archive into the Assetto Corsa root directory so that the `apps` and `extension` folders merge with the existing ones.
+The easiest way to install the mod is to drag the archive into Content Manager and press install. It's properly packed mod zip archive, so Content Manager should handle this fine.
+
+Or you can install it manually: extract the archive into the Assetto Corsa root directory so that the `apps` and `extension` folders merge with the existing ones.
 
 After installation:
 
@@ -66,7 +66,7 @@ The **Camera** tab contains the camera parameters:
 
 ![](res/lua_app_camera.png?raw=true)
 
-Most values intentionally follow the corresponding BeamNG.drive orbit-camera settings and ranges.
+Most values follow the corresponding BeamNG.drive orbit-camera settings and ranges.
 
 The camera ignores the standard Assetto Corsa chase-camera distance, height and pitch settings and uses its own values instead. This is intentional so all relevant camera settings can be adjusted from one place and tested immediately in-session.
 
