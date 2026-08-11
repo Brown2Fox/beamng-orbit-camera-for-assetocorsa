@@ -102,6 +102,11 @@ apps/lua/beamng-orbit-camera/
 extension/lua/chaser-camera/beamng-orbit/
 ```
 
+# Future Plans​
+
+- Support left, right, back glance
+- Maybe presets
+
 # Disclaimer
 
 For those who care, the project was created using the power of LLM. It helped me a lot to understand the scripts of the BeamNG.drive camera.
