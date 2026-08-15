@@ -6,7 +6,11 @@
   
 I like the orbit camera in BeamNG.drive, so I decided to port its behavior to Assetto Corsa and share the result.
 
-The goal of this mod is to reproduce the original BeamNG.drive orbit camera as closely as possible while adapting it to the APIs and limitations available in Assetto Corsa and CSP.
+
+What I like most about it is how well it works for actually driving. It feels natural with both a gamepad and keyboard, works especially well for drifting and rally driving, and makes it easy to see what the car is doing without unnecessary camera shake getting in the way.
+
+
+The goal of this mod is to bring the familiar BeamNG.drive orbit-camera feel to Assetto Corsa, while adapting it to the APIs and limitations available in AC and CSP.
 
 ## Showcase
 
