@@ -6,7 +6,7 @@
 -- Settings and cumulative resolved input come from the companion Lua App.
 --------
 
-local OrbitCamera = require('orbit-camera')
+local OrbitCamera = require('modules/orbit-camera')
 
 local paramsBridge = ac.connect({
   ac.StructItem.key('beamng_orbit_camera.params_bridge'),
