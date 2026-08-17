@@ -7,7 +7,7 @@
 
 local M = {}
 
-local CAMERA_CORE_MODULE = '../../../extension/lua/chaser-camera/beamng-orbit/orbit-camera'
+local CAMERA_CORE_MODULE = '../../../extension/lua/chaser-camera/beamng-orbit/modules/orbit-camera'
 
 M.enabled = false
 local obs = nil

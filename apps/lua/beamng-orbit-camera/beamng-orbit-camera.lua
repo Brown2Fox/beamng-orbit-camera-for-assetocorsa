@@ -5,9 +5,9 @@
 -- rendering each live in their own module.
 --------
 
-local Settings = require('settings')
-local Input = require('input')
-local ObsIntegration = require('obs-integration')
+local Settings = require('modules/settings')
+local Input = require('modules/input')
+local ObsIntegration = require('modules/obs-integration')
 
 local cameraIndex = -1;
 
