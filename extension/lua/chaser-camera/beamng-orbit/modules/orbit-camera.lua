@@ -159,6 +159,7 @@ local defaultCameraOffsetWorld = vec3()
 local toRearReference = vec3()
 local toTarget = vec3()
 local toRearBottom = vec3()
+local carPositionLocal = vec3()
 
 -- Optional per-car scene references. BeamNG can use vehicle-specific nodes for
 -- its orbit target and dynamic-FOV rear reference. AC cars do not define such
@@ -341,43 +342,62 @@ local function signedHeadingError(from, to)
   return math.atan(tmpCrossA:dot(WORLD_UP), math.clamp(from:dot(to), -1, 1))
 end
 
----@param current number
----@param velocity number
----@param target number
----@param rate number
----@param accel number
+---@param state number
+---@param previousVelocity number
+---@param sample number
 ---@param dt number
+---@param rateLimit number
+---@param startAcceleration number
+---@param stopAcceleration number
 ---@return number, number
-local function rateAccelStep(current, velocity, target, rate, accel, dt)
-  -- Approximation of BeamNG temporalSigmoidSmoothing: move a value with a
-  -- limited rate and inertia, braking early enough to settle without overshoot.
-  -- orbit.lua calls getWithRateAccel() with 0.3 for rise and 0.5 for fall;
-  -- those numbers are rate/acceleration limits, not transition durations.
-  rate = math.max(0.001, rate or 0)
-  accel = math.max(0.001, accel or rate)
-  dt = math.max(0, dt or 0)
-
-  local delta = target - current
-  if math.abs(delta) < 0.000001 and math.abs(velocity) < 0.000001 then
-    return target, 0
+local function temporalSigmoidGetWithRateAccel(
+    state,
+    previousVelocity,
+    sample,
+    dt,
+    rateLimit,
+    startAcceleration,
+    stopAcceleration
+)
+  -- Exact port of BeamNG temporalSigmoidSmoothing():getWithRateAccel().
+  if dt <= 0 then
+    return state, previousVelocity
   end
 
-  local direction = math.sign(delta)
-  local brakingLimitedRate = math.sqrt(math.max(0, 2 * accel * math.abs(delta)))
-  local desiredVelocity = direction * math.min(rate, brakingLimitedRate)
-  local maxVelocityChange = accel * dt
-  velocity = velocity + math.clamp(
-    desiredVelocity - velocity,
-    -maxVelocityChange,
-    maxVelocityChange
+  local difference = sample - state
+  local previousVelocityInTargetDirection = previousVelocity
+    * math.max(math.sign(previousVelocity * difference), 0)
+  local velocitySquared = previousVelocityInTargetDirection
+    * previousVelocityInTargetDirection
+  local absoluteDifference = math.abs(difference)
+  local differenceSign = math.sign(difference)
+
+  local accelerationDelta
+  local doubleAbsoluteDifference = absoluteDifference * 2
+  if velocitySquared > doubleAbsoluteDifference * stopAcceleration
+      and doubleAbsoluteDifference > 0 then
+    accelerationDelta = -differenceSign * math.min(
+      (velocitySquared / doubleAbsoluteDifference) * dt,
+      math.abs(previousVelocityInTargetDirection)
+    )
+  else
+    accelerationDelta = differenceSign * startAcceleration * dt
+  end
+
+  state = state + differenceSign * math.min(
+    math.min(
+      math.abs(previousVelocityInTargetDirection + 0.5 * accelerationDelta),
+      rateLimit
+    ) * dt,
+    absoluteDifference
   )
 
-  local nextValue = current + velocity * dt
-  if delta * (target - nextValue) <= 0 then
-    return target, 0
-  end
+  previousVelocity = differenceSign * math.min(
+    math.abs(previousVelocityInTargetDirection + accelerationDelta),
+    rateLimit
+  )
 
-  return math.clamp(nextValue, 0, 1), velocity
+  return state, previousVelocity
 end
 
 
@@ -626,17 +646,16 @@ local function updateDynamicPitchState(speed, manualRotationActive, dt)
     and DYNAMIC_PITCH_RISE_RATE
     or DYNAMIC_PITCH_FALL_RATE
 
-  -- BeamNG uses newTemporalSigmoidSmoothing(2, 2, 2, 2), then overrides
-  -- rate/start-accel/stop-accel with the same per-direction value. Using a
-  -- rate-and-acceleration motion profile reproduces the long, inertial rise
-  -- and the noticeably quicker return instead of treating 0.3/0.5 as seconds.
-  dynamicPitchBlend, dynamicPitchVelocity = rateAccelStep(
+  -- BeamNG uses newTemporalSigmoidSmoothing(2, 2, 2, 2), then passes the same
+  -- per-direction value as rate, start acceleration and stop acceleration.
+  dynamicPitchBlend, dynamicPitchVelocity = temporalSigmoidGetWithRateAccel(
     dynamicPitchBlend,
     dynamicPitchVelocity,
     target,
+    dt,
     rate,
     rate,
-    dt
+    rate
   )
 end
 
@@ -648,14 +667,16 @@ local function updateAabbReferences()
   local size = car.aabbSize
 
   local halfLength = math.abs(size.z) * 0.5
-  local halfHeight = math.abs(size.y) * 0.5
 
   -- BeamNG dynamic FOV fallback: center of the rear OOBB face.
   aabbRearLocal:set(center.x, center.y, center.z - halfLength)
   car.bodyTransform:transformPointTo(aabbRearPoint, aabbRearLocal)
 
-  -- BeamNG dynamic pitch limit: rear-bottom point on the OOBB centerline.
-  aabbRearBottomLocal:set(center.x, center.y - halfHeight, center.z - halfLength)
+  -- Some AC cars have an invalid vertical AABB extending far below the road.
+  -- Use the stable physics origin as the lower reference while retaining the
+  -- AABB-derived rear edge so the pitch limit still follows the car length.
+  car.worldToLocal:transformPointTo(carPositionLocal, car.position)
+  aabbRearBottomLocal:set(center.x, carPositionLocal.y, center.z - halfLength)
   car.bodyTransform:transformPointTo(rearBottomPoint, aabbRearBottomLocal)
 end
 
