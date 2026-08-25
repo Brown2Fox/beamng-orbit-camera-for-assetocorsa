@@ -94,6 +94,8 @@ It can be found in OBS plugin as custom `BeamNG Orbit Camera` source.
 
 **_Caution:_** If OBS Integration is enabled while this camera is active as the chase camera, its camera logic will run **twice** per frame.
 
+Unfortunately, running the camera logic only once causes jitter (and/or other misbehaviors) because the in-game camera and OBS source are updated from different contexts.
+
 ## How to uninstall
 
 Be aware that using Content Manager's uninstall/remove option will remove the Lua app but leave the custom chaser-camera script installed. To make sure the mod is removed completely, delete both folders listed below manually.
