@@ -90,7 +90,7 @@ There can currently be a conflict with Assetto Corsa/CSP's built-in orbit camera
 
 ### Obs Integration
 
-It can be found in OBS plugin as custom `BeamNG Orbit Camera` source.
+The camera is available in OBS as a custom `BeamNG Orbit Camera` source.
 
 **_Caution:_** If OBS Integration is enabled while this camera is active as the chase camera, its camera logic will run **twice** per frame.
 
