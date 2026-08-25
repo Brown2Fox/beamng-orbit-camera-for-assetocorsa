@@ -11,7 +11,9 @@ local ObsIntegration = require('modules/obs-integration')
 
 Input.setSettings(Settings)
 
+local VERSION_TEXT = 'App: v1.1.0, Cam: v1.1.0'
 local cameraIndex = -1;
+local cameraActive = false
 local playerWasInPit = false
 
 local cameraBridge = ac.connect({
@@ -44,12 +46,13 @@ function script.update(dt)
 
   cameraIndex = cameraBridge.cameraIndex
 
-  local cameraMode = ac.getSim().driveableCameraMode
+  local sim = ac.getSim()
 
-  local cameraActive = cameraIndex == 1 and cameraMode == ac.DrivableCamera.Chase or
-                      cameraIndex == 2 and cameraMode == ac.DrivableCamera.Chase2
+  cameraActive = sim.cameraMode == ac.CameraMode.Drivable and
+                 cameraIndex == 1 and sim.driveableCameraMode == ac.DrivableCamera.Chase or
+                 cameraIndex == 2 and sim.driveableCameraMode == ac.DrivableCamera.Chase2
   local shouldUpdate = cameraActive or
-                      ObsIntegration.enabled
+                       ObsIntegration.enabled
 
   if shouldUpdate then
     if cameraActive then
@@ -72,7 +75,36 @@ local function drawTabs()
   ui.tabItem('OBS Integration', ObsIntegration.drawObsIntegrationTab)
 end
 
+---@param label string
+---@param active boolean
+local function drawStatus(label, active)
+  ui.pushStyleColor(ui.StyleColor.Text, rgbm.colors.gray)
+  ui.text(label)
+  ui.popStyleColor()
+  ui.sameLine()
+
+  ui.pushStyleColor(
+    ui.StyleColor.Text,
+    active and rgbm.colors.lime or rgbm.colors.gray
+  )
+  ui.text(active and 'active' or 'inactive')
+  ui.popStyleColor()
+end
+
+local function drawStatusBar()
+  local windowSize = ui.windowSize()
+  local textDim = ui.measureText('C')
+
+  ui.setCursorY(windowSize.y - textDim.y - 8)
+
+  drawStatus('Cam:', cameraActive)
+  ui.sameLine()
+  drawStatus('Obs:', ObsIntegration.enabled)
+end
+
 ---@param dt number
 function script.windowMain(dt)
+  ui.textColored(VERSION_TEXT, rgbm.colors.gray)
   ui.tabBar('beamngOrbitCameraTabs', drawTabs)
+  drawStatusBar()
 end
