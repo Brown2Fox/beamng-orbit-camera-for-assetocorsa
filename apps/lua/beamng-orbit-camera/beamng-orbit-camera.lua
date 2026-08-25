@@ -9,12 +9,34 @@ local Settings = require('modules/settings')
 local Input = require('modules/input')
 local ObsIntegration = require('modules/obs-integration')
 
+Input.setSettings(Settings)
+
 local cameraIndex = -1;
+local playerWasInPit = false
 
 local cameraBridge = ac.connect({
   ac.StructItem.key('beamng_orbit_camera.camera_bridge'),
   cameraIndex = ac.StructItem.uint32(),
 }, false, ac.SharedNamespace.Shared)
+
+local function updateAutomaticRecenter()
+  local playerCar = ac.getCar(0)
+  if playerCar == nil then
+    return
+  end
+
+  local playerInPit = playerCar.isInPit
+  if playerInPit and not playerWasInPit then
+    Input.cameraInput.recenterKeepValuesPressed = true
+  end
+  playerWasInPit = playerInPit
+end
+
+ac.onSessionStart(function(_, restarted)
+  if not restarted then return end
+
+  Input.cameraInput.recenterKeepValuesPressed = true
+end)
 
 ---@param dt number
 ---@diagnostic disable-next-line: duplicate-set-field
@@ -31,7 +53,10 @@ function script.update(dt)
   if shouldUpdate then
     Settings.update()
     Input.update(dt)
+    updateAutomaticRecenter()
     ObsIntegration.update(dt, Settings.cameraConfig, Input.cameraInput)
+
+    Input.writeToBridge()
   end
 end
 

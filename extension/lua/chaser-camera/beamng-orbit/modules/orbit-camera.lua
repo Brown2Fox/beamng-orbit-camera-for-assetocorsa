@@ -98,7 +98,7 @@ local COLLISION_RELEASE_RATE = 7.0
 local MANUAL_YAW_LOCK_THRESHOLD_RAD = math.rad(10)
 local GLANCE_MOVEMENT_HEADING_START_SPEED = 2.0
 local GLANCE_MOVEMENT_HEADING_FULL_SPEED = 8.0
-local GLANCE_TRANSITION_DURATION = 0.30
+local GLANCE_TRANSITION_DURATION = 0.15
 
 -- BeamNG keeps a target rotation (camRot) and a separately smoothed
 -- rendered rotation (camLastRot). orbitYawRad/orbitPitchRad are targets;

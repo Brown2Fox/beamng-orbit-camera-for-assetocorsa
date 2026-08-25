@@ -2,7 +2,10 @@
 -- Device input, control bindings, controls bridge and Controls tab.
 --------
 
-local Settings = require('settings')
+---@type BeamNGOrbitCameraSettings
+local Settings = {}
+
+---@class BeamNGOrbitCameraInput
 local M = {}
 
 local ORBIT_YAW_SPEED_RAD = math.rad(100)
@@ -75,6 +78,11 @@ M.cameraInput = {
   glanceRight = false,
   glanceBack = false,
 }
+
+---@param settings BeamNGOrbitCameraSettings
+function M.setSettings(settings)
+  Settings = settings
+end
 
 local fullWidthSize = vec2()
 
@@ -207,24 +215,14 @@ function M.update(dt)
   cameraInput.glanceRight = glanceRightButton:down()
   cameraInput.glanceBack = glanceBackButton:down()
 
-  local glanceChanged = cameraInput.glanceLeft ~= lastGlanceLeft
-    or cameraInput.glanceRight ~= lastGlanceRight
-    or cameraInput.glanceBack ~= lastGlanceBack
-
-  local inputChanged = cameraInput.yawStepRad ~= 0
-    or cameraInput.pitchStepRad ~= 0
-    or cameraInput.zoomStep ~= 0
-    or cameraInput.zoomDistanceStep ~= 0
-    or cameraInput.recenterPressed
-    or cameraInput.recenterKeepValuesPressed
-    or glanceChanged
-
-  if not inputChanged then return cameraInput end
-
   yawTotalRad = yawTotalRad + cameraInput.yawStepRad
   pitchTotalRad = pitchTotalRad + cameraInput.pitchStepRad
   zoomTotal = zoomTotal + cameraInput.zoomStep
   zoomDistanceTotal = zoomDistanceTotal + cameraInput.zoomDistanceStep
+end
+
+function M.writeToBridge()
+  local cameraInput = M.cameraInput
 
   controlsBridge.yawTotalRad = yawTotalRad
   controlsBridge.pitchTotalRad = pitchTotalRad
@@ -241,9 +239,6 @@ function M.update(dt)
   controlsBridge.glanceLeft = cameraInput.glanceLeft
   controlsBridge.glanceRight = cameraInput.glanceRight
   controlsBridge.glanceBack = cameraInput.glanceBack
-  lastGlanceLeft = cameraInput.glanceLeft
-  lastGlanceRight = cameraInput.glanceRight
-  lastGlanceBack = cameraInput.glanceBack
 
   controlsBridge.seqNum = (controlsBridge.seqNum + 1) % UINT32_WRAP
 end

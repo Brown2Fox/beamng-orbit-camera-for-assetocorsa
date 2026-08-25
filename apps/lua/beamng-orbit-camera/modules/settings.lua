@@ -2,6 +2,7 @@
 -- Persisted settings, camera configuration bridge and parameter UI.
 --------
 
+---@class BeamNGOrbitCameraSettings
 local M = {}
 
 local GAMEPAD_CONTROL_SCHEMES = {
@@ -17,15 +18,24 @@ local MOUSE_CONTROL_SCHEMES = {
   [1] = 'RMB (Hold) + Move — Orbit; RMB (Hold) + Wheel — Zoom',
 }
 
+---@class ParamDef
+---@field kind 'slider'|'scheme'
+---@field displayName string
+---@field defaultValue number
+---@field minValue number?
+---@field maxValue number?
+---@field format string?
+---@field options table?
+
 local cameraParams = {
   cameraDistance = { displayName = 'Distance', defaultValue = 5.0, minValue = 3.0, maxValue = 30.0, format = '%.1f m', kind = 'slider' },
   cameraFov = { displayName = 'Field of view', defaultValue = 65.0, minValue = 45.0, maxValue = 85.0, format = '%.0f°', kind = 'slider' },
   cameraPitch = { displayName = 'Pitch', defaultValue = 17.0, minValue = -85.0, maxValue = 85.0, format = '%.0f°', kind = 'slider' },
   cameraTargetHeightOffset = { displayName = 'Target height offset', defaultValue = 0.0, minValue = -1.0, maxValue = 1.0, format = '%.2f m', kind = 'slider' },
   cameraRelaxation = { displayName = 'Follow vehicle direction', defaultValue = 6.0, minValue = 0.5, maxValue = 6.0, format = '%.2f', kind = 'slider' },
-  dynamicFovAtSpeed = { displayName = 'Dynamic FOV', defaultValue = 40.0, minValue = 0.0, maxValue = 75.0, format = '%.0f°', kind = 'slider' },
-  dynamicPitchAtSpeed = { displayName = 'Dynamic pitch', defaultValue = 7.0, minValue = 0.0, maxValue = 25.0, format = '%.1f°', kind = 'slider' },
-  dynamicHeightAtSpeed = { displayName = 'Dynamic height', defaultValue = 0.4, minValue = -1.0, maxValue = 1.0, format = '%.2f m', kind = 'slider' },
+  dynamicFovAtSpeed = { displayName = 'Field of view', defaultValue = 40.0, minValue = 0.0, maxValue = 75.0, format = '%.0f°', kind = 'slider' },
+  dynamicPitchAtSpeed = { displayName = 'Pitch', defaultValue = 7.0, minValue = 0.0, maxValue = 25.0, format = '%.1f°', kind = 'slider' },
+  dynamicHeightAtSpeed = { displayName = 'Height', defaultValue = 0.4, minValue = -1.0, maxValue = 1.0, format = '%.2f m', kind = 'slider' },
 }
 
 local controlParams = {
@@ -37,7 +47,8 @@ local controlParams = {
   zoomStickExponent = { displayName = 'Zoom exponent', defaultValue = 1.0, minValue = 0.2, maxValue = 5.0, format = '%.2f', kind = 'slider' },
 }
 
-local function getParam(key)
+---@return ParamDef
+local function getParamDef(key)
   return cameraParams[key] or controlParams[key]
 end
 
@@ -49,20 +60,57 @@ local function registerParams(params)
   end
 end
 
+---@param key string
+---@return number
+local function getParamVal(key)
+  return paramStorage[key]:get()
+end
+
+---@param key string
+---@param value number
+local function setParamVal(key, value)
+  paramStorage[key]:set(value)
+end
+
+---@param key string
+local function resetParamVal(key)
+  local paramDef = getParamDef(key)
+  if paramDef == nil then return end
+  setParamVal(key, paramDef.defaultValue)
+end
+
+local function resetCameraParams()
+  for key, param in pairs(cameraParams) do
+    setParamVal(key, param.defaultValue)
+  end
+end
+
+---@param paramVal number?
+---@param paramDef ParamDef
+---@return number
+local function clampParamValIfNeeded(paramVal, paramDef)
+
+  if paramVal and paramDef.minValue ~= nil then
+    paramVal = math.max(paramDef.minValue, paramVal)
+  end
+
+  if paramVal and paramDef.maxValue ~= nil then
+    paramVal = math.min(paramDef.maxValue, paramVal)
+  end
+
+  return paramVal or paramDef.defaultValue
+end
+
 registerParams(cameraParams)
 registerParams(controlParams)
 
 ---@param key string
 ---@return number
 function M.get(key)
-  local param = getParam(key)
-  local value = paramStorage[key]:get()
+  local paramDef = getParamDef(key)
+  local paramVal = getParamVal(key)
 
-  if param.kind == 'scheme' then
-    return param.options[value] ~= nil and value or param.defaultValue
-  end
-
-  return math.clamp(value, param.minValue, param.maxValue)
+  return clampParamValIfNeeded(paramVal, paramDef)
 end
 
 local paramsBridge = ac.connect({
@@ -142,56 +190,29 @@ function M.update()
 end
 
 ---@param key string
----@return boolean
-local function isParamModified(key)
-  local param = getParam(key)
-  if param == nil then return false end
-
-  local value = M.get(key)
-  if param.kind == 'scheme' then
-    return value ~= param.defaultValue
-  end
-
-  return math.abs(value - param.defaultValue) > 0.000001
-end
-
----@param key string
-local function resetParam(key)
-  local param = getParam(key)
-  if param == nil then return end
-  paramStorage[key]:set(param.defaultValue)
-end
-
-local function resetCameraParams()
-  for key, param in pairs(cameraParams) do
-    paramStorage[key]:set(param.defaultValue)
-  end
-end
-
----@param key string
 ---@param highlightIfModified boolean
 local function drawParamLabel(key, highlightIfModified)
-  local param = getParam(key)
-  if param == nil then return end
+  local paramDef = getParamDef(key)
+  if paramDef == nil then return end
 
-  if highlightIfModified and isParamModified(key) then
+  if highlightIfModified and getParamVal(key) ~= paramDef.defaultValue then
     ui.pushStyleColor(ui.StyleColor.Text, MODIFIED_PARAM_COLOR)
-    ui.text(param.displayName)
+    ui.text(paramDef.displayName)
     ui.popStyleColor()
   else
-    ui.text(param.displayName)
+    ui.text(paramDef.displayName)
   end
 end
 
 ---@param key string
 ---@param highlightIfModified boolean
 function M.drawSlider(key, highlightIfModified)
-  local param = getParam(key)
-  if param == nil or param.kind ~= 'slider' then return end
+  local paramDef = getParamDef(key)
+  if paramDef == nil or paramDef.kind ~= 'slider' then return end
 
   local valueObj = paramStorage[key]
-  local valueNum = valueObj:get()
-  local needHighlight = highlightIfModified and isParamModified(key)
+  local value = clampParamValIfNeeded(valueObj:get(), paramDef)
+  local needHighlight = highlightIfModified and value ~= paramDef.defaultValue
 
   drawParamLabel(key, highlightIfModified)
   ui.sameLine(230)
@@ -202,10 +223,10 @@ function M.drawSlider(key, highlightIfModified)
 
   local newValue, changed = ui.slider(
     '##' .. key,
-    valueNum,
-    param.minValue,
-    param.maxValue,
-    param.format
+    value,
+    paramDef.minValue,
+    paramDef.maxValue,
+    paramDef.format
   )
 
   if needHighlight then
@@ -213,7 +234,7 @@ function M.drawSlider(key, highlightIfModified)
   end
 
   if ui.itemHovered() and ui.mouseDown(ui.MouseButton.Right) then
-    resetParam(key)
+    resetParamVal(key)
   end
 
   if changed then
@@ -224,12 +245,12 @@ end
 ---@param key string
 ---@param highlightIfModified boolean
 function M.drawScheme(key, highlightIfModified)
-  local param = getParam(key)
-  if param == nil or param.kind ~= 'scheme' then return end
+  local paramDef = getParamDef(key)
+  if paramDef == nil or paramDef.kind ~= 'scheme' then return end
 
   local valueObj = paramStorage[key]
-  local value = M.get(key)
-  local needHighlight = highlightIfModified and isParamModified(key)
+  local value = clampParamValIfNeeded(valueObj:get(), paramDef)
+  local needHighlight = highlightIfModified and value ~= paramDef.defaultValue
 
   drawParamLabel(key, highlightIfModified)
   ui.sameLine(230)
@@ -239,18 +260,18 @@ function M.drawScheme(key, highlightIfModified)
     ui.pushStyleColor(ui.StyleColor.Text, MODIFIED_PARAM_COLOR)
   end
 
-  local comboOpen = ui.beginCombo('##' .. key, param.options[value])
+  local comboOpen = ui.beginCombo('##' .. key, paramDef.options[value])
 
   if needHighlight then
     ui.popStyleColor()
   end
 
   if ui.itemHovered() and ui.mouseDown(ui.MouseButton.Right) then
-    resetParam(key)
+    resetParamVal(key)
   end
 
   if comboOpen then
-    for scheme, name in pairs(param.options) do
+    for scheme, name in pairs(paramDef.options) do
       if ui.selectable(name .. '##' .. key .. scheme) then
         valueObj:set(scheme)
       end
@@ -272,7 +293,7 @@ function M.drawCameraTab()
   M.drawSlider('cameraRelaxation', true)
 
   ui.newLine()
-  ui.text('At speed')
+  ui.text('Offsets at speed (current value + value below * speed factor)')
   ui.separator()
 
   M.drawSlider('dynamicFovAtSpeed', true)
