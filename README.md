@@ -88,14 +88,11 @@ There can currently be a conflict with Assetto Corsa/CSP's built-in orbit camera
 
 ## Mod Specifics
 
-The default camera target is based on the Assetto Corsa car position. Dynamic FOV and dynamic pitch use the car bounding box where BeamNG.drive would normally use vehicle-specific geometry.
+### Obs Integration
 
-Optional custom scene nodes can be added to improve the camera reference geometry:
+It can be found in OBS plugin as custom `BeamNG Orbit Camera` source.
 
-- `BEAMNG_ORBIT_TARGET` — overrides the default camera target reference point.
-- `BEAMNG_ORBIT_REAR` — overrides the rear reference used by Dynamic FOV.
-
-If those nodes are not present, the camera automatically uses its normal fallbacks, so no vehicle modifications are required for regular use.
+**_Caution:_** If OBS Integration is enabled while this camera is active as the chase camera, its camera logic will run **twice** per frame.
 
 ## How to uninstall
 
@@ -108,7 +105,6 @@ extension/lua/chaser-camera/beamng-orbit/
 
 # Future Plans​
 
-- Support left, right, back glance
 - Maybe presets
 
 # Disclaimer
