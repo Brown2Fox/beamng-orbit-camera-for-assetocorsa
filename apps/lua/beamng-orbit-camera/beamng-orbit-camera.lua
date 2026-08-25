@@ -46,17 +46,23 @@ function script.update(dt)
 
   local cameraMode = ac.getSim().driveableCameraMode
 
-  local shouldUpdate = cameraIndex == 1 and cameraMode == ac.DrivableCamera.Chase or
-                      cameraIndex == 2 and cameraMode == ac.DrivableCamera.Chase2 or
+  local cameraActive = cameraIndex == 1 and cameraMode == ac.DrivableCamera.Chase or
+                      cameraIndex == 2 and cameraMode == ac.DrivableCamera.Chase2
+  local shouldUpdate = cameraActive or
                       ObsIntegration.enabled
 
   if shouldUpdate then
-    Settings.update()
-    Input.update(dt)
+    if cameraActive then
+      Input.update(dt)
+      Settings.update()
+    end
+
     updateAutomaticRecenter()
+
     ObsIntegration.update(dt, Settings.cameraConfig, Input.cameraInput)
 
     Input.writeToBridge()
+    Input.reset()
   end
 end
 

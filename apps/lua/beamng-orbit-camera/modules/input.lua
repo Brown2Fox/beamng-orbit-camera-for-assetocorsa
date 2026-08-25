@@ -243,6 +243,20 @@ function M.writeToBridge()
   controlsBridge.seqNum = (controlsBridge.seqNum + 1) % UINT32_WRAP
 end
 
+function M.reset()
+  local cameraInput = M.cameraInput
+
+  cameraInput.yawStepRad = 0.0
+  cameraInput.pitchStepRad = 0.0
+  cameraInput.zoomStep = 0.0
+  cameraInput.zoomDistanceStep = 0.0
+  cameraInput.recenterPressed = false
+  cameraInput.recenterKeepValuesPressed = false
+  cameraInput.glanceLeft = false
+  cameraInput.glanceRight = false
+  cameraInput.glanceBack = false
+end
+
 ---@param label string
 ---@param description string
 ---@param button ac.ControlButton
