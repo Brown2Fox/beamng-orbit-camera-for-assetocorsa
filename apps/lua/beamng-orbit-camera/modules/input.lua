@@ -22,6 +22,10 @@ local zoomInButton = ac.ControlButton('beamng_orbit_camera.zoom_in', { keyboard 
 local recenterButton = ac.ControlButton('beamng_orbit_camera.recenter', { keyboard = { key = ac.KeyIndex.NumPad5 }, hold = false })
 local recenterKeepValuesButton = ac.ControlButton('beamng_orbit_camera.recenter_keep_values', { keyboard = { key = ac.KeyIndex.NumPad5, ctrl = true }, hold = false })
 
+local glanceLeftButton = ac.ControlButton('GLANCELEFT')
+local glanceRightButton = ac.ControlButton('GLANCERIGHT')
+local glanceBackButton = ac.ControlButton('GLANCEBACK')
+
 -- Zoom modifier belongs specifically to the analogue gamepad schemes.
 local zoomModifierButton = ac.ControlButton('beamng_orbit_camera.zoom_modifier_gamepad', { hold = false })
 
@@ -43,12 +47,19 @@ local controlsBridge = ac.connect({
 
   recenterSeqNum = ac.StructItem.uint32(),
   recenterKeepValuesSeqNum = ac.StructItem.uint32(),
+
+  glanceLeft = ac.StructItem.boolean(),
+  glanceRight = ac.StructItem.boolean(),
+  glanceBack = ac.StructItem.boolean(),
 }, false, ac.SharedNamespace.Shared)
 
 local yawTotalRad = controlsBridge.yawTotalRad or 0
 local pitchTotalRad = controlsBridge.pitchTotalRad or 0
 local zoomTotal = controlsBridge.zoomTotal or 0
 local zoomDistanceTotal = controlsBridge.zoomDistanceTotal or 0
+local lastGlanceLeft = controlsBridge.glanceLeft == true
+local lastGlanceRight = controlsBridge.glanceRight == true
+local lastGlanceBack = controlsBridge.glanceBack == true
 
 -- Direct per-App-update input is consumed by the independent OBS core instance.
 -- The same input is also accumulated in controlsBridge for the chaser-camera,
@@ -60,6 +71,9 @@ M.cameraInput = {
   zoomDistanceStep = 0.0,
   recenterPressed = false,
   recenterKeepValuesPressed = false,
+  glanceLeft = false,
+  glanceRight = false,
+  glanceBack = false,
 }
 
 local fullWidthSize = vec2()
@@ -189,6 +203,13 @@ function M.update(dt)
 
   cameraInput.recenterPressed = recenterButton:pressed()
   cameraInput.recenterKeepValuesPressed = recenterKeepValuesButton:pressed()
+  cameraInput.glanceLeft = glanceLeftButton:down()
+  cameraInput.glanceRight = glanceRightButton:down()
+  cameraInput.glanceBack = glanceBackButton:down()
+
+  local glanceChanged = cameraInput.glanceLeft ~= lastGlanceLeft
+    or cameraInput.glanceRight ~= lastGlanceRight
+    or cameraInput.glanceBack ~= lastGlanceBack
 
   local inputChanged = cameraInput.yawStepRad ~= 0
     or cameraInput.pitchStepRad ~= 0
@@ -196,6 +217,7 @@ function M.update(dt)
     or cameraInput.zoomDistanceStep ~= 0
     or cameraInput.recenterPressed
     or cameraInput.recenterKeepValuesPressed
+    or glanceChanged
 
   if not inputChanged then return cameraInput end
 
@@ -215,6 +237,13 @@ function M.update(dt)
   if cameraInput.recenterKeepValuesPressed then
     controlsBridge.recenterKeepValuesSeqNum = (controlsBridge.recenterKeepValuesSeqNum + 1) % UINT32_WRAP
   end
+
+  controlsBridge.glanceLeft = cameraInput.glanceLeft
+  controlsBridge.glanceRight = cameraInput.glanceRight
+  controlsBridge.glanceBack = cameraInput.glanceBack
+  lastGlanceLeft = cameraInput.glanceLeft
+  lastGlanceRight = cameraInput.glanceRight
+  lastGlanceBack = cameraInput.glanceBack
 
   controlsBridge.seqNum = (controlsBridge.seqNum + 1) % UINT32_WRAP
 end

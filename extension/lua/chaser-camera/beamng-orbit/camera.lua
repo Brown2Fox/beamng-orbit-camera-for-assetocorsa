@@ -33,6 +33,10 @@ local controlsBridge = ac.connect({
 
   recenterSeqNum = ac.StructItem.uint32(),
   recenterKeepValuesSeqNum = ac.StructItem.uint32(),
+
+  glanceLeft = ac.StructItem.boolean(),
+  glanceRight = ac.StructItem.boolean(),
+  glanceBack = ac.StructItem.boolean(),
 }, false, ac.SharedNamespace.Shared)
 
 local cameraBridge = ac.connect({
@@ -58,6 +62,9 @@ local cameraInput = {
   zoomDistanceStep = 0.0,
   recenterPressed = false,
   recenterKeepValuesPressed = false,
+  glanceLeft = false,
+  glanceRight = false,
+  glanceBack = false,
 }
 
 local lastParamsBridgeSeqNum = 0
@@ -123,11 +130,18 @@ local function readControlsInput()
   local zoomDistanceTotal = controlsBridge.zoomDistanceTotal
   local recenterSeqNum = controlsBridge.recenterSeqNum
   local recenterKeepValuesSeqNum = controlsBridge.recenterKeepValuesSeqNum
+  local glanceLeft = controlsBridge.glanceLeft
+  local glanceRight = controlsBridge.glanceRight
+  local glanceBack = controlsBridge.glanceBack
 
   local seqNumAfter = controlsBridge.seqNum
   if seqNumBefore ~= seqNumAfter then
     return cameraInput
   end
+
+  cameraInput.glanceLeft = glanceLeft
+  cameraInput.glanceRight = glanceRight
+  cameraInput.glanceBack = glanceBack
 
   if not controlsBridgeInitialized then
     lastControlsBridgeSeqNum = seqNumAfter
@@ -182,11 +196,13 @@ function update(dt, cameraIndex)
     cameraBridge.cameraIndex = cameraIndex;
   end
 
+  local input = readControlsInput()
+
   local pose = OrbitCamera.update(
     dt,
     car,
     cameraConfig,
-    readControlsInput()
+    input
   )
 
   if pose then

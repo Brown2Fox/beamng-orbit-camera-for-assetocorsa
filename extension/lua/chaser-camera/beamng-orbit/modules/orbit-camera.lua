@@ -25,6 +25,9 @@
 ---@field zoomDistanceStep number
 ---@field recenterPressed boolean
 ---@field recenterKeepValuesPressed boolean
+---@field glanceLeft boolean
+---@field glanceRight boolean
+---@field glanceBack boolean
 
 ---@class BeamNGOrbitCameraPose
 ---@field position vec3
@@ -93,6 +96,9 @@ local COLLISION_MIN_HIT_DISTANCE = 0.5
 local COLLISION_RELEASE_RATE = 7.0
 
 local MANUAL_YAW_LOCK_THRESHOLD_RAD = math.rad(10)
+local GLANCE_MOVEMENT_HEADING_START_SPEED = 2.0
+local GLANCE_MOVEMENT_HEADING_FULL_SPEED = 8.0
+local GLANCE_TRANSITION_DURATION = 0.30
 
 -- BeamNG keeps a target rotation (camRot) and a separately smoothed
 -- rendered rotation (camLastRot). orbitYawRad/orbitPitchRad are targets;
@@ -122,6 +128,9 @@ local camAnchorPerp = vec3()
 local targetPosLast = vec3()
 local headingInitialized = false
 local resetHeadingReference = false
+local glanceTransitionActive = false
+local glanceTransitionElapsed = 0.0
+local glanceMode = 0
 
 local recenterWorldForward = vec3()
 
@@ -142,6 +151,14 @@ local lockedCameraDirection = vec3()
 local lockedCameraFlipOffset = vec3()
 local camPointVector = vec3()
 local camPointVectorPerp = vec3()
+local normalOrbitForward = vec3()
+local movementHeading = vec3()
+local glanceBaseHeading = vec3()
+local glanceTargetForward = vec3()
+local glanceRenderedForward = vec3(0, 0, 1)
+local glanceTransitionStartForward = vec3(0, 0, 1)
+local glanceStartHorizontal = vec3()
+local glanceTargetHorizontal = vec3()
 local orbitForward = vec3()
 local baseCameraPosition = vec3()
 local finalCameraPosition = vec3()
@@ -229,6 +246,11 @@ local function resetCameraState()
   lastValidCarHeading:set(0, 0, 1)
   headingInitialized = false
   resetHeadingReference = false
+  glanceTransitionActive = false
+  glanceTransitionElapsed = 0.0
+  glanceMode = 0
+  glanceRenderedForward:set(0, 0, 1)
+  glanceTransitionStartForward:set(0, 0, 1)
 
   timeSinceManualRotation = 1000.0
   abovePitchSpeedThreshold = false
@@ -339,7 +361,127 @@ end
 local function signedHeadingError(from, to)
   from:cross(to, tmpCrossA)
   ---@diagnostic disable-next-line: redundant-parameter
-  return math.atan(tmpCrossA:dot(WORLD_UP), math.clamp(from:dot(to), -1, 1))
+  return math.atan2(tmpCrossA:dot(WORLD_UP), math.clamp(from:dot(to), -1, 1))
+end
+
+---@param from vec3
+---@param to vec3
+---@param t number
+---@param out vec3
+local function interpolateForward(from, to, t, out)
+  local fromLength = #from
+  local toLength = #to
+  if fromLength <= 0.0001 or toLength <= 0.0001 then
+    out:set(to)
+    return
+  end
+
+  glanceStartHorizontal:set(from.x, 0, from.z)
+  glanceTargetHorizontal:set(to.x, 0, to.z)
+  local startHorizontalLength = #glanceStartHorizontal
+  local targetHorizontalLength = #glanceTargetHorizontal
+  if startHorizontalLength <= 0.0001 or targetHorizontalLength <= 0.0001 then
+    out:set(from * (1 - t) + to * t)
+    if #out > 0.0001 then out:normalize() end
+    return
+  end
+
+  glanceStartHorizontal:set(glanceStartHorizontal / startHorizontalLength)
+  glanceTargetHorizontal:set(glanceTargetHorizontal / targetHorizontalLength)
+  local yawDelta = signedHeadingError(glanceStartHorizontal, glanceTargetHorizontal)
+  glanceStartHorizontal:rotate(
+    quat.fromAngleAxis(yawDelta * t, WORLD_UP),
+    out
+  )
+
+  local fromPitch = math.asin(math.clamp(from.y / fromLength, -1, 1))
+  local toPitch = math.asin(math.clamp(to.y / toLength, -1, 1))
+  local pitch = fromPitch + (toPitch - fromPitch) * t
+  local horizontalScale = math.cos(pitch)
+  out:set(out.x * horizontalScale, math.sin(pitch), out.z * horizontalScale)
+  out:normalize()
+end
+
+---@param dt number
+---@param input BeamNGOrbitCameraInput
+---@param carHeading vec3
+---@param velocity vec3
+---@param normalForward vec3
+---@param out vec3
+local function updateGlanceForward(dt, input, carHeading, velocity, normalForward, out)
+  local glanceLeft = input.glanceLeft == true
+  local glanceRight = input.glanceRight == true
+  local glanceBack = input.glanceBack == true
+  local nextGlanceMode = glanceBack and 3
+    or glanceLeft ~= glanceRight and (glanceLeft and 1 or 2)
+    or 0
+
+  if nextGlanceMode ~= 0 then
+    movementHeading:set(velocity.x, 0, velocity.z)
+    local movementSpeed = #movementHeading
+    if movementSpeed > 0.0001 then
+      movementHeading:set(movementHeading / movementSpeed)
+      local movementBlend = math.clamp(
+        (movementSpeed - GLANCE_MOVEMENT_HEADING_START_SPEED)
+          / (GLANCE_MOVEMENT_HEADING_FULL_SPEED - GLANCE_MOVEMENT_HEADING_START_SPEED),
+        0,
+        1
+      )
+      carHeading:rotate(
+        quat.fromAngleAxis(
+          signedHeadingError(carHeading, movementHeading) * movementBlend,
+          WORLD_UP
+        ),
+        glanceBaseHeading
+      )
+    else
+      glanceBaseHeading:set(carHeading)
+    end
+
+    if nextGlanceMode == 3 then
+      glanceTargetForward:set(glanceBaseHeading * -1)
+    else
+      glanceBaseHeading:rotate(
+        quat.fromAngleAxis(nextGlanceMode == 1 and math.pi * 0.5 or -math.pi * 0.5, WORLD_UP),
+        glanceTargetForward
+      )
+    end
+  else
+    glanceTargetForward:set(normalForward)
+  end
+  glanceTargetForward:normalize()
+
+  if nextGlanceMode ~= glanceMode then
+    if glanceMode == 0 and not glanceTransitionActive then
+      glanceRenderedForward:set(normalForward)
+    end
+    glanceTransitionStartForward:set(glanceRenderedForward)
+    glanceTransitionElapsed = 0.0
+    glanceTransitionActive = true
+    glanceMode = nextGlanceMode
+  end
+
+  if glanceTransitionActive then
+    glanceTransitionElapsed = glanceTransitionElapsed + math.max(dt, 0)
+    local glanceT = math.clamp(glanceTransitionElapsed / GLANCE_TRANSITION_DURATION, 0, 1)
+    glanceT = glanceT * glanceT * (3 - 2 * glanceT)
+    interpolateForward(
+      glanceTransitionStartForward,
+      glanceTargetForward,
+      glanceT,
+      out
+    )
+    glanceRenderedForward:set(out)
+
+    if glanceTransitionElapsed >= GLANCE_TRANSITION_DURATION then
+      glanceTransitionActive = false
+      glanceRenderedForward:set(glanceTargetForward)
+      out:set(glanceTargetForward)
+    end
+  else
+    out:set(glanceTargetForward)
+    glanceRenderedForward:set(out)
+  end
 end
 
 ---@param state number
@@ -1045,8 +1187,17 @@ function M.update(dt, targetCar, config, input)
 
   updateDynamicPitchState(carSpeed, manualRotationActive, dt)
 
-  headingReference:rotate(quat.fromAngleAxis(displayedYawRad, WORLD_UP), orbitForward)
-  orbitForward:normalize()
+  headingReference:rotate(quat.fromAngleAxis(displayedYawRad, WORLD_UP), normalOrbitForward)
+  normalOrbitForward:normalize()
+
+  updateGlanceForward(
+    dt,
+    input,
+    carHeading,
+    car.velocity,
+    normalOrbitForward,
+    orbitForward
+  )
 
   local dynamicFov, dynamicDistance = calculateDynamicFovAndDistance(
     orbitDistance,
