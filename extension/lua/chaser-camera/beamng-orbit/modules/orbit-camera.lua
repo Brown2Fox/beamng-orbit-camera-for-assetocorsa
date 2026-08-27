@@ -908,11 +908,12 @@ local function castCollisionRay(startPos, direction, rayLength)
   if directionLength <= 0.0001 then return rayLength end
   collisionRayDirection:set(collisionRayDirection / directionLength)
 
+  local outPosition, outNormal
   local hitDistance = render.createRay(
     startPos,
     collisionRayDirection,
     rayLength
-  ):track()
+  ):physics(outPosition, outNormal)
 
   if hitDistance == nil or hitDistance < 0 then return rayLength end
   return math.min(hitDistance, rayLength)
@@ -958,11 +959,8 @@ end
 ---@param desiredCameraPosition vec3
 ---@param desiredCameraDirection vec3
 ---@param dt number
-local function applyCameraCollision(
-    targetPos,
-    desiredCameraPosition,
-    desiredCameraDirection,
-    dt)
+local function applyCameraCollision(targetPos, desiredCameraPosition, desiredCameraDirection, dt)
+
   collisionDirection:set(desiredCameraPosition - targetPos)
   local directionLength = #collisionDirection
   if directionLength <= 0.0001 then
