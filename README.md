@@ -82,10 +82,6 @@ The **Controls** tab contains common bindable actions and specifics for gamepad 
 
 The gamepad and mouse are implemented using *predefined control schemes* to reduce the number of possible moving parts. And also because, in any case, there is no convenient way to assign gamepad axes and mouse buttons.
 
-### Mouse Orbit Conflict
-
-There can currently be a conflict with Assetto Corsa/CSP's built-in orbit camera if that camera is also configured to rotate while holding the **right mouse button**.
-
 ## Mod Specifics
 
 ### Obs Integration
