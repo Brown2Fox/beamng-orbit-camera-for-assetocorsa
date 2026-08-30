@@ -11,7 +11,7 @@ local ObsIntegration = require('modules/obs-integration')
 
 Input.setSettings(Settings)
 
-local VERSION_TEXT = 'App: v1.1.0, Cam: v1.1.0'
+local VERSION_TEXT = 'Ver: 1.1.1'
 local cameraIndex = -1;
 local cameraActive = false
 local playerWasInPit = false
