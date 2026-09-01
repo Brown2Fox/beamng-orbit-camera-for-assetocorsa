@@ -32,7 +32,7 @@ local cameraParams = {
   cameraFov = { displayName = 'Field of view', defaultValue = 65.0, minValue = 45.0, maxValue = 85.0, format = '%.0f°', kind = 'slider' },
   cameraPitch = { displayName = 'Pitch', defaultValue = 17.0, minValue = -85.0, maxValue = 85.0, format = '%.0f°', kind = 'slider' },
   cameraTargetHeightOffset = { displayName = 'Target height offset', defaultValue = 0.0, minValue = -1.0, maxValue = 1.0, format = '%.2f m', kind = 'slider' },
-  cameraRelaxation = { displayName = 'Follow vehicle direction', defaultValue = 6.0, minValue = 0.5, maxValue = 6.0, format = '%.2f', kind = 'slider' },
+  cameraRelaxation = { displayName = 'Follow vehicle direction', defaultValue = 6.0, minValue = 0.2, maxValue = 6.0, format = '%.2f', kind = 'slider' },
   dynamicFovAtSpeed = { displayName = 'Field of view', defaultValue = 40.0, minValue = 0.0, maxValue = 75.0, format = '%.0f°', kind = 'slider' },
   dynamicPitchAtSpeed = { displayName = 'Pitch', defaultValue = 7.0, minValue = 0.0, maxValue = 25.0, format = '%.1f°', kind = 'slider' },
   dynamicHeightAtSpeed = { displayName = 'Height', defaultValue = 0.4, minValue = -1.0, maxValue = 1.0, format = '%.2f m', kind = 'slider' },

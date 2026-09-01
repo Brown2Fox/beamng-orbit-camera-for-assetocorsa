@@ -85,6 +85,10 @@ local DYNAMIC_PITCH_LOW_SPEED_DELAY = 1.5
 local DYNAMIC_PITCH_RISE_RATE = 0.30
 local DYNAMIC_PITCH_FALL_RATE = 0.50
 
+local RELAXATION_SAFE_MIN = 0.5
+local RELAXATION_BLEND_START_SPEED = 70*10.0/36.0
+local RELAXATION_BLEND_END_SPEED = 140*10.0/36.0
+
 -- BeamNG collision.lua constants. BeamNG computes its longitudinal plane
 -- offset as data.res.nearClip - 0.1. The shared camera core does not expose that
 -- value here, so keep the plane centered on the desired camera position rather
@@ -110,6 +114,8 @@ local displayedPitchRad = 0.0
 local orbitDistance = 0.0
 local displayedDistance = 0.0
 local orbitInitialized = false
+
+local effectiveRelaxation = RELAXATION_SAFE_MIN
 
 -- BeamNG lockCamera state. After enough manual horizontal rotation, a vehicle
 -- direction reversal swaps the internal heading hemisphere while preserving
@@ -542,17 +548,38 @@ local function temporalSigmoidGetWithRateAccel(
   return state, previousVelocity
 end
 
+---@param speed number
+---@return number
+local function getEffectiveRelaxation(speed)
+  local configuredRelaxation = runtimeConfig.cameraRelaxation
+
+  if configuredRelaxation >= RELAXATION_SAFE_MIN then
+    return configuredRelaxation
+  end
+
+  local t = math.clamp(
+    (speed - RELAXATION_BLEND_START_SPEED)
+      / (RELAXATION_BLEND_END_SPEED - RELAXATION_BLEND_START_SPEED),
+    0,
+    1
+  )
+
+  t = t * t * (3 - 2 * t)
+
+  return RELAXATION_SAFE_MIN
+    + (configuredRelaxation - RELAXATION_SAFE_MIN) * t
+end
 
 ---@param targetPos vec3
 ---@param carHeading vec3
 local function initializeHeading(targetPos, carHeading)
   headingReference:set(carHeading)
-  camAnchor:set(targetPos - carHeading * runtimeConfig.cameraRelaxation)
+  camAnchor:set(targetPos - carHeading * effectiveRelaxation)
 
   WORLD_UP:cross(carHeading, tmpCrossA)
   local rightLength = #tmpCrossA
   if rightLength > 0.0001 then
-    camAnchorPerp:set(targetPos + tmpCrossA * (-runtimeConfig.cameraRelaxation * 0.8 / rightLength))
+    camAnchorPerp:set(targetPos + tmpCrossA * (-effectiveRelaxation * 0.8 / rightLength))
   else
     camAnchorPerp:set(targetPos)
   end
@@ -603,7 +630,7 @@ local function handleLockedCameraHemisphere(targetPos)
     local rightLength = #tmpCrossA
     if rightLength > 0.0001 then
       camAnchorPerp:set(
-        targetPos + tmpCrossA * (-runtimeConfig.cameraRelaxation * 0.8 / rightLength)
+        targetPos + tmpCrossA * (-effectiveRelaxation * 0.8 / rightLength)
       )
     else
       camAnchorPerp:set(targetPos)
@@ -631,7 +658,7 @@ local function updateMovementHeading(targetPos, carHeading, dt)
   local pointLength = #camPointVector
   local perpLength = #camPointVectorPerp
 
-  if pointLength < runtimeConfig.cameraRelaxation and perpLength > runtimeConfig.cameraRelaxation * 0.8 then
+  if pointLength < effectiveRelaxation and perpLength > effectiveRelaxation * 0.8 then
     tmpMoveDirection:set(targetPos - targetPosLast)
     local moveLength = #tmpMoveDirection
     if moveLength > 0.0001 and pointLength > 0.0001 and perpLength > 0.0001 then
@@ -675,15 +702,15 @@ local function updateMovementHeading(targetPos, carHeading, dt)
   camPointVector:set(camAnchor - targetPos)
   local anchorLength = #camPointVector
   if anchorLength > 0.0001 then
-    camAnchor:set(targetPos + camPointVector * (runtimeConfig.cameraRelaxation / anchorLength))
+    camAnchor:set(targetPos + camPointVector * (effectiveRelaxation / anchorLength))
   else
-    camAnchor:set(targetPos - headingReference * runtimeConfig.cameraRelaxation)
+    camAnchor:set(targetPos - headingReference * effectiveRelaxation)
   end
 
   WORLD_UP:cross(headingReference, tmpCrossA)
   local rightLength = #tmpCrossA
   if rightLength > 0.0001 then
-    camAnchorPerp:set(targetPos + tmpCrossA * (-runtimeConfig.cameraRelaxation * 0.8 / rightLength))
+    camAnchorPerp:set(targetPos + tmpCrossA * (-effectiveRelaxation * 0.8 / rightLength))
   else
     camAnchorPerp:set(targetPos)
   end
@@ -1107,6 +1134,9 @@ function M.update(dt, targetCar, config, input)
   end
 
   local carSpeed = math.abs(car.speedMs)
+
+  effectiveRelaxation = getEffectiveRelaxation(carSpeed)
+  ac.debug('effectiveRelaxation', effectiveRelaxation)
 
   local carHeading = planarHeading(car.look)
   if carHeading == VEC3_ZERO then
