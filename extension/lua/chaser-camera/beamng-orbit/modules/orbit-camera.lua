@@ -1,12 +1,3 @@
---------
--- BeamNG-style Orbit Camera core.
---
--- Owns all state and math for one camera-script Lua context. Both the Lua App
--- (OBS output) and the CSP chaser-camera require this same physical file, but
--- each script context gets independent module state. Callers feed settings,
--- resolved input and a target ac.StateCar; the core returns a final pose without
--- writing to ac.Camera.
---------
 
 ---@class BeamNGOrbitCameraConfig
 ---@field cameraDistance number
@@ -63,7 +54,6 @@ local outputPose = {
   fov = 65.0,
 }
 
--- Defining constants and conversion helpers.
 
 local VEC3_ZERO = vec3(0, 0, 0)
 local WORLD_UP = vec3(0, 1, 0)
@@ -89,10 +79,6 @@ local RELAXATION_SAFE_MIN = 0.5
 local RELAXATION_BLEND_START_SPEED = 70*10.0/36.0
 local RELAXATION_BLEND_END_SPEED = 140*10.0/36.0
 
--- BeamNG collision.lua constants. BeamNG computes its longitudinal plane
--- offset as data.res.nearClip - 0.1. The shared camera core does not expose that
--- value here, so keep the plane centered on the desired camera position rather
--- than introduce an unrelated configurable approximation.
 local COLLISION_ASSUMED_NEAR_CLIP_DISTANCE = 0.0
 local COLLISION_NEAR_CLIP_HALF_WIDTH = 0.2
 local COLLISION_NEAR_CLIP_HALF_HEIGHT = 0.1
@@ -104,9 +90,6 @@ local GLANCE_MOVEMENT_HEADING_START_SPEED = 2.0
 local GLANCE_MOVEMENT_HEADING_FULL_SPEED = 8.0
 local GLANCE_TRANSITION_DURATION = 0.15
 
--- BeamNG keeps a target rotation (camRot) and a separately smoothed
--- rendered rotation (camLastRot). orbitYawRad/orbitPitchRad are targets;
--- displayedYawRad/displayedPitchRad are the rendered equivalents.
 local orbitYawRad = 0.0
 local orbitPitchRad = 0.0
 local displayedYawRad = 0.0
@@ -117,16 +100,10 @@ local orbitInitialized = false
 
 local effectiveRelaxation = RELAXATION_SAFE_MIN
 
--- BeamNG lockCamera state. After enough manual horizontal rotation, a vehicle
--- direction reversal swaps the internal heading hemisphere while preserving
--- the same world-space camera view.
 local lockCamera = false
 local accumulatedManualYawRad = 0.0
 local lastAppliedFov = runtimeConfig.cameraFov
 
--- BeamNG equivalents:
--- camAnchor = camLastPos2, camAnchorPerp = camLastPosPerp,
--- targetPosLast = camLastTargetPos.
 local headingReference = vec3(0, 0, 1)
 local lastValidCarHeading = vec3(0, 0, 1)
 local camAnchor = vec3()
@@ -141,14 +118,12 @@ local glanceMode = 0
 local recenterWorldForward = vec3()
 
 
--- BeamNG dynamic-pitch state.
 local timeSinceManualRotation = 1000.0
 local abovePitchSpeedThreshold = false
 local belowPitchThresholdTimer = nil
 local dynamicPitchBlend = 0.0
 local dynamicPitchVelocity = 0.0
 
--- Reused vectors.
 local tmpCrossA = vec3()
 local tmpCrossB = vec3()
 local tmpHorizontal = vec3()
@@ -184,16 +159,10 @@ local toTarget = vec3()
 local toRearBottom = vec3()
 local carPositionLocal = vec3()
 
--- Optional per-car scene references. BeamNG can use vehicle-specific nodes for
--- its orbit target and dynamic-FOV rear reference. AC cars do not define such
--- nodes by default, so these names are an opt-in convention for cars that need
--- custom camera geometry. If absent, target falls back to car.position and the
--- dynamic-FOV rear reference falls back to the AABB rear face.
 local targetReferenceNode = nil
 local dynamicFovRearReferenceNode = nil
 local vehicleReferenceNodesInitialized = false
 
--- BeamNG collision.lua state and scratch vectors.
 local collisionUseRaycast = true
 local collisionLastDistance = nil
 local collisionHasLastNearClipCenter = false
@@ -507,7 +476,6 @@ local function temporalSigmoidGetWithRateAccel(
     startAcceleration,
     stopAcceleration
 )
-  -- Exact port of BeamNG temporalSigmoidSmoothing():getWithRateAccel().
   if dt <= 0 then
     return state, previousVelocity
   end
@@ -593,32 +561,15 @@ end
 local function handleLockedCameraHemisphere(targetPos)
   if not lockCamera or not headingInitialized then return end
 
-  -- Direct port of BeamNG orbit.lua lockCamera reversal handling:
-  -- camdir = camLastTargetPos - camLastPos2
-  -- if movement is opposite camdir, add 180 degrees to camRot and move
-  -- camLastPos2 to the opposite side. These two changes cancel in world
-  -- space, so the rendered camera does not orbit around the vehicle.
   lockedCameraDirection:set(targetPosLast - camAnchor)
   if #lockedCameraDirection < 0.0001 then return end
 
   tmpMoveDirection:set(targetPos - targetPosLast)
 
   if tmpMoveDirection:dot(lockedCameraDirection) < 0 then
-    -- BeamNG applies the hemisphere flip to both camRot and camLastRot.
-    -- Updating both target and rendered yaw should preserve the current world view.
     orbitYawRad = wrapAngle(orbitYawRad + math.pi)
     displayedYawRad = wrapAngle(displayedYawRad + math.pi)
 
-    -- CSP adaptation: orbitYawRad is a rotation around fixed WORLD_UP (Y). A 180°
-    -- yaw negates X/Z but preserves Y. Simply moving the anchor by the full
-    -- lockedCameraDirection would also negate its vertical component when
-    -- updateMovementHeading() rebuilds targetPos - camAnchor, producing an
-    -- instantaneous pitch-like jump on slopes. Reflect only the anchor offset's
-    -- Y component here so the rebuilt heading becomes a true WORLD_UP half-turn:
-    --   old heading:        ( x,  y,  z)
-    --   heading after flip: (-x,  y, -z)
-    --   +180° yaw:          ( x,  y,  z)
-    -- Thus the world-space camera direction remains continuous in all 3 axes.
     lockedCameraFlipOffset:set(
       lockedCameraDirection.x,
       -lockedCameraDirection.y,
@@ -650,9 +601,7 @@ local function updateMovementHeading(targetPos, carHeading, dt)
     return
   end
 
-  -- BeamNG: lastCamPointVec = targetPos - camLastPos2
   camPointVector:set(targetPos - camAnchor)
-  -- BeamNG: lastCamLastPerp = camLastPosPerp - targetPos
   camPointVectorPerp:set(camAnchorPerp - targetPos)
 
   local pointLength = #camPointVector
@@ -685,8 +634,6 @@ local function updateMovementHeading(targetPos, carHeading, dt)
     headingReference:set(carHeading)
   end
 
-  -- BeamNG flattens the rotation plane when the camera moves perpendicularly.
-  -- Its world-up axis is Z; AC uses Y, hence x/z form the horizontal plane here.
   tmpHorizontal:set(headingReference.x, 0, headingReference.z)
   local horizontalLength = #tmpHorizontal
   if horizontalLength > 0.0001 then
@@ -698,7 +645,6 @@ local function updateMovementHeading(targetPos, carHeading, dt)
     headingReference:normalize()
   end
 
-  -- BeamNG keeps camLastPos2 exactly relaxation metres from targetPos.
   camPointVector:set(camAnchor - targetPos)
   local anchorLength = #camPointVector
   if anchorLength > 0.0001 then
@@ -722,10 +668,6 @@ end
 ---@param targetPos vec3
 ---@param carHeading vec3
 local function requestRecenter(keepPitchAndDistance, targetPos, carHeading)
-  -- BeamNG reset() immediately sets camRot to its target defaults while
-  -- preserving the current rendered view in camLastRot/camLastDist. Recreate
-  -- that separation here: displayedYawRad/displayedPitchRad stay at the current view,
-  -- while orbitYawRad/orbitPitchRad become the new targets.
   headingReference:rotate(quat.fromAngleAxis(displayedYawRad, WORLD_UP), recenterWorldForward)
   if #recenterWorldForward > 0.0001 then
     recenterWorldForward:normalize()
@@ -781,8 +723,6 @@ local function updateDynamicPitchState(speed, manualRotationActive, dt)
     timeSinceManualRotation = timeSinceManualRotation + dt
   end
 
-  -- BeamNG leaves the current sigmoid value unchanged for one second after
-  -- manual rotation. It does not force it to zero during that delay.
   if timeSinceManualRotation <= DYNAMIC_PITCH_MANUAL_DELAY then
     return
   end
@@ -815,8 +755,6 @@ local function updateDynamicPitchState(speed, manualRotationActive, dt)
     and DYNAMIC_PITCH_RISE_RATE
     or DYNAMIC_PITCH_FALL_RATE
 
-  -- BeamNG uses newTemporalSigmoidSmoothing(2, 2, 2, 2), then passes the same
-  -- per-direction value as rate, start acceleration and stop acceleration.
   dynamicPitchBlend, dynamicPitchVelocity = temporalSigmoidGetWithRateAccel(
     dynamicPitchBlend,
     dynamicPitchVelocity,
@@ -829,21 +767,14 @@ local function updateDynamicPitchState(speed, manualRotationActive, dt)
 end
 
 local function updateAabbReferences()
-  -- car.aabbCenter/aabbSize are in car model space. Transforming the two
-  -- reference points with bodyTransform turns the local AABB into the
-  -- car-oriented world-space box used by the camera.
   local center = car.aabbCenter
   local size = car.aabbSize
 
   local halfLength = math.abs(size.z) * 0.5
 
-  -- BeamNG dynamic FOV fallback: center of the rear OOBB face.
   aabbRearLocal:set(center.x, center.y, center.z - halfLength)
   car.bodyTransform:transformPointTo(aabbRearPoint, aabbRearLocal)
 
-  -- Some AC cars have an invalid vertical AABB extending far below the road.
-  -- Use the stable physics origin as the lower reference while retaining the
-  -- AABB-derived rear edge so the pitch limit still follows the car length.
   car.worldToLocal:transformPointTo(carPositionLocal, car.position)
   aabbRearBottomLocal:set(center.x, carPositionLocal.y, center.z - halfLength)
   car.bodyTransform:transformPointTo(rearBottomPoint, aabbRearBottomLocal)
@@ -853,9 +784,6 @@ end
 ---@param baseFov number
 ---@return number
 local function calculateDynamicPitchLimit(targetPos, baseFov)
-  -- BeamNG calculates this limit from the *default* orbit pose rather than the
-  -- current manually rotated/zoomed camera. Our positive pitch convention is
-  -- the sign-inverted equivalent of BeamNG's defaultRotation.y.
   local defaultPitchRad = runtimeConfig.cameraPitchRad
   local defaultDistance = runtimeConfig.cameraDistance
 
@@ -866,9 +794,6 @@ local function calculateDynamicPitchLimit(targetPos, baseFov)
   )
   car.bodyTransform:transformVectorTo(defaultCameraOffsetWorld, defaultCameraOffsetLocal)
 
-  -- Same geometry as BeamNG:
-  -- bottomRearDir = bottomRear - defaultCamPos
-  -- targetDir = -defaultCamPos
   toRearBottom:set(rearBottomPoint - targetPos - defaultCameraOffsetWorld)
   toTarget:set(defaultCameraOffsetWorld * -1)
 
@@ -888,23 +813,17 @@ end
 ---@param targetPos vec3
 ---@return number dynamicFov, number dynamicDistance
 local function calculateDynamicFovAndDistance(targetDistance, smoothedDistance, speed, targetPos)
-  -- Unlike BeamNG, this port has no per-vehicle orbit-camera FOV config.
-  -- runtimeConfig.cameraFov is therefore exposed directly as the zero-speed/base FOV,
-  -- instead of exposing BeamNG's global modifier on top of a hidden base.
   local baseFov = runtimeConfig.cameraFov
 
   local dynamicFov = math.clamp(
     baseFov + runtimeConfig.dynamicFovAtSpeed * math.min(1, speed / DYNAMIC_FOV_SPEED),
     10, 160)
 
-  -- BeamNG uses the full 3D distance from targetPos to its rear reference.
   toRearReference:set(rearReferencePoint - targetPos)
   local refToRear = #toRearReference
   local halfToRad = math.pi / 360
   local ratio = math.tan(baseFov * halfToRad) / math.tan(dynamicFov * halfToRad)
 
-  -- BeamNG computes a distance delta from target camDist, then adds it to the
-  -- separately smoothed displayed distance (camLastDist interpolation).
   local fovDistanceDifference = (targetDistance - refToRear) * (ratio - 1)
   local dynamicDistance = math.max(0.1, smoothedDistance + fovDistanceDifference)
   return dynamicFov, dynamicDistance
@@ -913,13 +832,9 @@ end
 ---@param speed number
 ---@return number
 local function calculateDynamicHeight(speed)
-  -- Direct copy of BeamNG orbit.lua height-offset curve. The variable called
-  -- smoothedVelocity in BeamNG is only a remapped scalar; it is not a temporal
-  -- filter and therefore no additional smoothing is applied here.
   local velocity = math.min(speed, 70)
   local smoothedVelocity = math.max(velocity * 0.05 - 0.2, 0.0)
   local lengthValue = math.min((1.4 * smoothedVelocity) / (smoothedVelocity + 4.1), 1)
-  -- BeamNG allows a signed offset: positive raises the camera, negative lowers it.
   return lengthValue * runtimeConfig.dynamicHeightAtSpeed
 end
 
@@ -948,8 +863,6 @@ end
 
 ---@return boolean
 local function isObstacleInFrontOfCamera()
-  -- BeamNG collision.lua first checks whether the near-clip rectangle has
-  -- crossed completely through static collision geometry in a single frame.
   if collisionHasLastNearClipCenter then
     collisionEdgeDirection:set(
       collisionRayDestinations[1] - collisionLastNearClipCenter
@@ -965,9 +878,6 @@ local function isObstacleInFrontOfCamera()
     end
   end
 
-  -- Then test all four edges of the current near-clip rectangle. This lets
-  -- the cheaper idle mode notice geometry entering the camera plane and
-  -- re-enable the four full target-to-camera raycasts.
   for i = 1, 4 do
     local cornerPos = collisionRayDestinations[i]
     local rayDest = collisionRayDestinations[i % 4 + 1]
@@ -1007,9 +917,6 @@ local function applyCameraCollision(targetPos, desiredCameraPosition, desiredCam
     collisionCamDirection:set(collisionDirection * (-1 / directionLength))
   end
 
-  -- Build the same near-clip rectangle as BeamNG. AC exposes WORLD_UP as the
-  -- requested camera up vector, so derive an orthonormal right/up basis from
-  -- the final rendered look direction.
   WORLD_UP:cross(collisionCamDirection, collisionCamRight)
   local rightLength = #collisionCamRight
   if rightLength <= 0.0001 then
@@ -1053,8 +960,6 @@ local function applyCameraCollision(targetPos, desiredCameraPosition, desiredCam
   local closestHit = directionLength
   local hitRegistered = false
   if collisionUseRaycast then
-    -- Direct BeamNG layout: four parallel rays from the target side to the
-    -- four corners of the near-clip plane, keeping the closest static hit.
     for i = 1, 4 do
       local cornerPos = collisionRayDestinations[i]
       collisionRayStart:set(cornerPos - collisionDirection)
@@ -1075,9 +980,6 @@ local function applyCameraCollision(targetPos, desiredCameraPosition, desiredCam
     collisionUseRaycast = false
   end
 
-  -- BeamNG uses newTemporalSmoothingNonLinear(1, 7, 0), but bypasses the
-  -- smoother whenever the camera must move inward. Preserve that important
-  -- asymmetry here: collision response is immediate, release is smoothed.
   local smoothedDistance = closestHit
   if collisionLastDistance ~= nil then
     local destinationDifference = closestHit - collisionLastDistance
@@ -1171,8 +1073,6 @@ function M.update(dt, targetCar, config, input)
   local manualRotationActive = math.abs(manualYawStepRad) > INPUT_ANGLE_EPSILON_RAD
     or math.abs(manualPitchStepRad) > INPUT_ANGLE_EPSILON_RAD
 
-  -- BeamNG applies manual input to target camRot directly. Device-specific
-  -- interpretation has already happened in the Lua App.
   orbitYawRad = wrapAngle(orbitYawRad + manualYawStepRad)
   orbitPitchRad = math.clamp(
     orbitPitchRad + manualPitchStepRad,
@@ -1245,8 +1145,6 @@ function M.update(dt, targetCar, config, input)
   local heightOffset = calculateDynamicHeight(carSpeed)
   finalCameraPosition:set(baseCameraPosition + WORLD_UP * heightOffset)
 
-  -- Match BeamNG ordering: direction is calculated from the unshifted orbit
-  -- position, then dynamic height is added only to the final position.
   baseDirection:set(targetPos - baseCameraPosition)
   if #baseDirection > 0.0001 then
     baseDirection:normalize()
@@ -1257,9 +1155,6 @@ function M.update(dt, targetCar, config, input)
   local dynamicPitchAngleRad = 0
   if dynamicPitchBlend > 0.0001 and runtimeConfig.dynamicPitchAtSpeedRad > 0 then
     local pitchLimitRad = calculateDynamicPitchLimit(targetPos, runtimeConfig.cameraFov)
-    -- BeamNG applies dynamic pitch with a negative angle. With AC's Y-up
-    -- coordinate system and cameraRight axis this pitches the view upward,
-    -- moving the vehicle lower on screen just like orbit.lua.
     dynamicPitchAngleRad = -math.min(runtimeConfig.dynamicPitchAtSpeedRad, pitchLimitRad) * dynamicPitchBlend
   end
 

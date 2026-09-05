@@ -1,9 +1,3 @@
---------
--- BeamNG-style Orbit Camera companion Lua App.
---
--- Keeps orchestration only. Persisted settings, device input and optional OBS
--- rendering each live in their own module.
---------
 
 local Settings = require('modules/settings')
 local Input = require('modules/input')

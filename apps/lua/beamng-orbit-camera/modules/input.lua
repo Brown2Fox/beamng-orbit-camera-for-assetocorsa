@@ -1,6 +1,3 @@
---------
--- Device input, control bindings, controls bridge and Controls tab.
---------
 
 ---@type BeamNGOrbitCameraSettings
 local Settings = {}
@@ -14,8 +11,6 @@ local MOUSE_ORBIT_SENSITIVITY_RAD = math.rad(0.12)
 local MOUSE_ZOOM_WHEEL_STEP = 0.75
 local UINT32_WRAP = 4294967296
 
--- Button actions are intentionally device-agnostic. A single ControlButton can
--- keep keyboard, gamepad and controller/wheel bindings at the same time.
 local orbitLeftButton = ac.ControlButton('beamng_orbit_camera.orbit_left', { keyboard = { key = ac.KeyIndex.NumPad4 }, hold = false })
 local orbitRightButton = ac.ControlButton('beamng_orbit_camera.orbit_right', { keyboard = { key = ac.KeyIndex.NumPad6 }, hold = false })
 local orbitDownButton = ac.ControlButton('beamng_orbit_camera.orbit_down', { keyboard = { key = ac.KeyIndex.NumPad2 }, hold = false })
@@ -29,7 +24,6 @@ local glanceLeftButton = ac.ControlButton('GLANCELEFT')
 local glanceRightButton = ac.ControlButton('GLANCERIGHT')
 local glanceBackButton = ac.ControlButton('GLANCEBACK')
 
--- Zoom modifier belongs specifically to the analogue gamepad schemes.
 local zoomModifierButton = ac.ControlButton('beamng_orbit_camera.zoom_modifier_gamepad', { hold = false })
 
 local commonControlFlags = ui.ControlButtonControlFlags.AlterRealConfig
@@ -64,9 +58,6 @@ local lastGlanceLeft = controlsBridge.glanceLeft == true
 local lastGlanceRight = controlsBridge.glanceRight == true
 local lastGlanceBack = controlsBridge.glanceBack == true
 
--- Direct per-App-update input is consumed by the independent OBS core instance.
--- The same input is also accumulated in controlsBridge for the chaser-camera,
--- so different update cadences cannot lose button/axis movement.
 M.cameraInput = {
   yawStepRad = 0.0,
   pitchStepRad = 0.0,
@@ -175,15 +166,12 @@ function M.update(dt)
 
   if zoomModifierButton:down() then
     if gamepadControlScheme == 2 then
-      -- Right Stick — Orbit; Zoom modifier + Left Stick Y — Zoom.
       gamepadZoomInput = readZoomAxis(0)
     elseif gamepadControlScheme == 3 then
-      -- Right Stick — Orbit; Zoom modifier + Right Stick Y — Zoom.
       gamepadYawInput = 0
       gamepadPitchInput = 0
       gamepadZoomInput = readZoomAxis(1)
     elseif gamepadControlScheme == 4 then
-      -- Right Stick — Orbit; Zoom modifier + Right Stick — Zoom + Yaw.
       gamepadPitchInput = 0
       gamepadZoomInput = readZoomAxis(1)
     end

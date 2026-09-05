@@ -1,9 +1,3 @@
---------
--- Optional OBS integration for BeamNG Orbit Camera.
---
--- Disabled by default and runtime-only. Camera core and OBS helper are loaded
--- lazily on first enable, and no second camera update runs while disabled.
---------
 
 local M = {}
 

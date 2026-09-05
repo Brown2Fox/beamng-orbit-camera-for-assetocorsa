@@ -1,6 +1,3 @@
---------
--- Persisted settings, camera configuration bridge and parameter UI.
---------
 
 ---@class BeamNGOrbitCameraSettings
 local M = {}

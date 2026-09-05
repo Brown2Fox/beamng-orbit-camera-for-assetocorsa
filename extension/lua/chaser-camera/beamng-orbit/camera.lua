@@ -1,10 +1,3 @@
---------
--- BeamNG-style Orbit Camera chaser adapter.
---
--- Runs the shared Orbit Camera core directly in the chaser-camera update
--- cadence, so the game camera is calculated from the same-frame vehicle state.
--- Settings and cumulative resolved input come from the companion Lua App.
---------
 
 local OrbitCamera = require('modules/orbit-camera')
 
@@ -171,8 +164,6 @@ local function readControlsInput()
   lastRecenterSeqNum = recenterSeqNum
   lastRecenterKeepValuesSeqNum = recenterKeepValuesSeqNum
 
-  -- If the App/shared bridge was recreated and cumulative totals restarted,
-  -- discard the discontinuity instead of producing a camera jump.
   if math.abs(cameraInput.yawStepRad) > math.pi * 4
       or math.abs(cameraInput.pitchStepRad) > math.pi * 4
       or math.abs(cameraInput.zoomStep) > 10
