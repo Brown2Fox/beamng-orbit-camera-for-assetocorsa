@@ -69,31 +69,32 @@ local function drawTabs()
   ui.tabItem('OBS Integration', ObsIntegration.drawObsIntegrationTab)
 end
 
----@param label string
----@param active boolean
-local function drawStatus(label, active)
-  ui.pushStyleColor(ui.StyleColor.Text, rgbm.colors.gray)
-  ui.text(label)
-  ui.popStyleColor()
-  ui.sameLine()
-
-  ui.pushStyleColor(
-    ui.StyleColor.Text,
-    active and rgbm.colors.lime or rgbm.colors.gray
-  )
-  ui.text(active and 'active' or 'inactive')
-  ui.popStyleColor()
-end
-
 local function drawStatusBar()
   local windowSize = ui.windowSize()
   local textDim = ui.measureText('C')
 
   ui.setCursorY(windowSize.y - textDim.y - 8)
-
-  drawStatus('Cam:', cameraActive)
-  ui.sameLine()
-  drawStatus('Obs:', ObsIntegration.enabled)
+  if cameraActive then
+    ui.pushStyleColor(ui.StyleColor.Text, rgbm.colors.gray)
+    ui.text('Cam:')
+    ui.popStyleColor()
+    ui.sameLine()
+    ui.pushStyleColor(ui.StyleColor.Text, rgbm.colors.lime)
+    ui.text('active')
+    ui.popStyleColor()
+  end
+  if ObsIntegration.enabled then
+    if cameraActive then
+      ui.sameLine()
+    end
+    ui.pushStyleColor(ui.StyleColor.Text, rgbm.colors.gray)
+    ui.text('Obs:')
+    ui.popStyleColor()
+    ui.sameLine()
+    ui.pushStyleColor(ui.StyleColor.Text, rgbm.colors.lime)
+    ui.text('active')
+    ui.popStyleColor()
+  end
 end
 
 ---@param dt number
@@ -102,3 +103,4 @@ function script.windowMain(dt)
   ui.tabBar('beamngOrbitCameraTabs', drawTabs)
   drawStatusBar()
 end
+
