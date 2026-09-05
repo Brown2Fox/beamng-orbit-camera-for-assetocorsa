@@ -159,10 +159,6 @@ local toTarget = vec3()
 local toRearBottom = vec3()
 local carPositionLocal = vec3()
 
-local targetReferenceNode = nil
-local dynamicFovRearReferenceNode = nil
-local vehicleReferenceNodesInitialized = false
-
 local collisionUseRaycast = true
 local collisionLastDistance = nil
 local collisionHasLastNearClipCenter = false
@@ -182,32 +178,6 @@ local function resetCollisionState()
   collisionUseRaycast = true
   collisionLastDistance = nil
   collisionHasLastNearClipCenter = false
-end
-
-local function refreshVehicleReferenceNodes()
-  targetReferenceNode = nil
-  dynamicFovRearReferenceNode = nil
-  vehicleReferenceNodesInitialized = false
-
-  if car == nil then return end
-
-  local carRoot = ac.findNodes('carRoot:' .. car.index)
-  if carRoot == nil or #carRoot == 0 then return end
-
-  local body = carRoot:findNodes('BODYTR')
-  if body == nil or #body == 0 then return end
-
-  local targetNode = body:findNodes('BEAMNG_ORBIT_TARGET')
-  if targetNode ~= nil and #targetNode > 0 then
-    targetReferenceNode = targetNode
-  end
-
-  local rearNode = body:findNodes('BEAMNG_ORBIT_REAR')
-  if rearNode ~= nil and #rearNode > 0 then
-    dynamicFovRearReferenceNode = rearNode
-  end
-
-  vehicleReferenceNodesInitialized = true
 end
 
 local function resetCameraState()
@@ -236,27 +206,8 @@ local function resetCameraState()
   resetCollisionState()
 end
 
----@param fallbackPosition vec3
----@return vec3
-local function resolveTargetReference(fallbackPosition)
-  if targetReferenceNode ~= nil then
-    local transform = targetReferenceNode:getWorldTransformationRaw()
-    if transform ~= nil then
-      targetReferencePosition:set(transform.position)
-      return targetReferencePosition
-    end
-  end
-  return fallbackPosition
-end
-
 local function updateRearReference()
   rearReferencePoint:set(aabbRearPoint)
-  if dynamicFovRearReferenceNode == nil then return end
-
-  local transform = dynamicFovRearReferenceNode:getWorldTransformationRaw()
-  if transform ~= nil then
-    rearReferencePoint:set(transform.position)
-  end
 end
 
 ---@param value number
@@ -1015,14 +966,9 @@ function M.update(dt, targetCar, config, input)
   if car == nil or currentCarIndex ~= targetCar.index then
     car = targetCar
     currentCarIndex = targetCar.index
-    refreshVehicleReferenceNodes()
     resetCameraState()
   else
     car = targetCar
-  end
-
-  if not vehicleReferenceNodesInitialized then
-    refreshVehicleReferenceNodes()
   end
 
   if not orbitInitialized then
@@ -1048,8 +994,7 @@ function M.update(dt, targetCar, config, input)
   end
 
   local carPosition = car.transform.position
-  local targetReference = resolveTargetReference(carPosition)
-  local targetPos = targetReference + WORLD_UP * runtimeConfig.cameraTargetHeightOffset
+  local targetPos = carPosition + WORLD_UP * runtimeConfig.cameraTargetHeightOffset
   updateAabbReferences()
   updateRearReference()
   handleLockedCameraHemisphere(targetPos)
@@ -1178,8 +1123,8 @@ function M.update(dt, targetCar, config, input)
 end
 
 function M.reset()
-  refreshVehicleReferenceNodes()
   resetCameraState()
 end
 
 return M
+
