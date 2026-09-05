@@ -2,6 +2,7 @@
 local Settings = require('modules/settings')
 local Input = require('modules/input')
 local ObsIntegration = require('modules/obs-integration')
+local Extras = require('modules/extras')
 
 Input.setSettings(Settings)
 
@@ -66,7 +67,7 @@ end
 local function drawTabs()
   ui.tabItem('Camera', Settings.drawCameraTab)
   ui.tabItem('Controls', Input.drawControlsTab)
-  ui.tabItem('OBS Integration', ObsIntegration.drawObsIntegrationTab)
+  ui.tabItem('Extras', Extras.drawExtrasTab)
 end
 
 local function drawStatusBar()
