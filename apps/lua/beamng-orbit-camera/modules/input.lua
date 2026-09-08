@@ -54,9 +54,6 @@ local yawTotalRad = controlsBridge.yawTotalRad or 0
 local pitchTotalRad = controlsBridge.pitchTotalRad or 0
 local zoomTotal = controlsBridge.zoomTotal or 0
 local zoomDistanceTotal = controlsBridge.zoomDistanceTotal or 0
-local lastGlanceLeft = controlsBridge.glanceLeft == true
-local lastGlanceRight = controlsBridge.glanceRight == true
-local lastGlanceBack = controlsBridge.glanceBack == true
 
 M.cameraInput = {
   yawStepRad = 0.0,
@@ -76,6 +73,15 @@ function M.setSettings(settings)
 end
 
 local fullWidthSize = vec2()
+
+local gamepadIndex = 0
+
+local function reloadGamepadIndex()
+  gamepadIndex = ac.INIConfig.controlsConfig():get('X360', 'JOYPAD_INDEX', 0)
+end
+
+reloadGamepadIndex()
+ac.onControlSettingsChanged(reloadGamepadIndex)
 
 ---@param value number
 ---@param deadzone number
@@ -104,7 +110,7 @@ local function readGamepadStick(stickIndex)
     yAxis = ac.GamepadAxis and ac.GamepadAxis.RightThumbY or 5
   end
 
-  return ac.getGamepadAxisValue(0, xAxis) or 0, ac.getGamepadAxisValue(0, yAxis) or 0
+  return ac.getGamepadAxisValue(gamepadIndex, xAxis) or 0, ac.getGamepadAxisValue(gamepadIndex, yAxis) or 0
 end
 
 ---@param stickIndex integer 0 — Left, 1 — Right
