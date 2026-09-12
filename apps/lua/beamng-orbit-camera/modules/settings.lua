@@ -15,8 +15,14 @@ local MOUSE_CONTROL_SCHEMES = {
   [1] = 'RMB (Hold) + Move — Orbit; RMB (Hold) + Wheel — Zoom',
 }
 
+local COLLISION_HANDLING_SCHEMES = {
+  [0] = 'Disabled',
+  [1] = 'Collision with physics shapes',
+  [2] = 'Collision with visuals',
+}
+
 ---@class ParamDef
----@field kind 'slider'|'scheme'
+---@field kind 'slider'|'scheme'|'cbox'
 ---@field displayName string
 ---@field defaultValue number
 ---@field minValue number?
@@ -44,9 +50,14 @@ local controlParams = {
   zoomStickExponent = { displayName = 'Zoom exponent', defaultValue = 1.0, minValue = 0.2, maxValue = 5.0, format = '%.2f', kind = 'slider' },
 }
 
+local collisionParams = {
+  collisionHandlingMethod = { displayName = 'Handling method', defaultValue = 1, options = COLLISION_HANDLING_SCHEMES, kind = 'scheme' },
+  disableCollisionWhenRecentered = { displayName = 'Disable collision for recentered camera', defaultValue = 0, kind = 'cbox' },
+}
+
 ---@return ParamDef
 local function getParamDef(key)
-  return cameraParams[key] or controlParams[key]
+  return cameraParams[key] or controlParams[key] or collisionParams[key]
 end
 
 local paramStorage = {}
@@ -100,6 +111,7 @@ end
 
 registerParams(cameraParams)
 registerParams(controlParams)
+registerParams(collisionParams)
 
 ---@param key string
 ---@return number
@@ -122,17 +134,21 @@ local paramsBridge = ac.connect({
   dynamicFovAtSpeed = ac.StructItem.double(),
   dynamicPitchAtSpeed = ac.StructItem.double(),
   dynamicHeightAtSpeed = ac.StructItem.double(),
+  collisionHandlingMethod = ac.StructItem.uint32(),
+  disableCollisionWhenRecentered = ac.StructItem.boolean(),
 }, false, ac.SharedNamespace.Shared)
 
 M.cameraConfig = {
-  cameraDistance = 5.0,
-  cameraFov = 65.0,
-  cameraTargetHeightOffset = 0.0,
-  cameraPitch = 17.0,
-  cameraRelaxation = 6.0,
-  dynamicFovAtSpeed = 40.0,
-  dynamicPitchAtSpeed = 7.0,
-  dynamicHeightAtSpeed = 0.4,
+  cameraDistance = cameraParams.cameraDistance.defaultValue,
+  cameraFov = cameraParams.cameraFov.defaultValue,
+  cameraTargetHeightOffset = cameraParams.cameraTargetHeightOffset.defaultValue,
+  cameraPitch = cameraParams.cameraPitch.defaultValue,
+  cameraRelaxation = cameraParams.cameraRelaxation.defaultValue,
+  dynamicFovAtSpeed = cameraParams.dynamicFovAtSpeed.defaultValue,
+  dynamicPitchAtSpeed = cameraParams.dynamicPitchAtSpeed.defaultValue,
+  dynamicHeightAtSpeed = cameraParams.dynamicHeightAtSpeed.defaultValue,
+  collisionHandlingMethod = collisionParams.collisionHandlingMethod.defaultValue,
+  disableCollisionWhenRecentered = collisionParams.disableCollisionWhenRecentered.defaultValue == 1,
 }
 
 local UINT32_WRAP = 4294967296
@@ -150,6 +166,8 @@ function M.update()
   local dynamicFovAtSpeed = M.get('dynamicFovAtSpeed')
   local dynamicPitchAtSpeed = M.get('dynamicPitchAtSpeed')
   local dynamicHeightAtSpeed = M.get('dynamicHeightAtSpeed')
+  local collisionHandlingMethod = M.get('collisionHandlingMethod')
+  local disableCollisionWhenRecentered = M.get('disableCollisionWhenRecentered') == 1
 
   local changed = not paramsPublished
     or cameraDistance ~= cameraConfig.cameraDistance
@@ -160,6 +178,9 @@ function M.update()
     or dynamicFovAtSpeed ~= cameraConfig.dynamicFovAtSpeed
     or dynamicPitchAtSpeed ~= cameraConfig.dynamicPitchAtSpeed
     or dynamicHeightAtSpeed ~= cameraConfig.dynamicHeightAtSpeed
+    or collisionHandlingMethod ~= cameraConfig.collisionHandlingMethod
+    or disableCollisionWhenRecentered
+      ~= cameraConfig.disableCollisionWhenRecentered
 
   cameraConfig.cameraDistance = cameraDistance
   cameraConfig.cameraFov = cameraFov
@@ -169,6 +190,8 @@ function M.update()
   cameraConfig.dynamicFovAtSpeed = dynamicFovAtSpeed
   cameraConfig.dynamicPitchAtSpeed = dynamicPitchAtSpeed
   cameraConfig.dynamicHeightAtSpeed = dynamicHeightAtSpeed
+  cameraConfig.collisionHandlingMethod = collisionHandlingMethod
+  cameraConfig.disableCollisionWhenRecentered = disableCollisionWhenRecentered
 
   if not changed then return end
 
@@ -181,6 +204,8 @@ function M.update()
   paramsBridge.dynamicFovAtSpeed = dynamicFovAtSpeed
   paramsBridge.dynamicPitchAtSpeed = dynamicPitchAtSpeed
   paramsBridge.dynamicHeightAtSpeed = dynamicHeightAtSpeed
+  paramsBridge.collisionHandlingMethod = collisionHandlingMethod
+  paramsBridge.disableCollisionWhenRecentered = disableCollisionWhenRecentered
   paramsBridge.seqNum = (paramsBridge.seqNum + 1) % UINT32_WRAP
   paramsBridge.ready = true
   paramsPublished = true
@@ -277,6 +302,47 @@ function M.drawScheme(key, highlightIfModified)
   end
 
   ui.popItemWidth()
+end
+
+---@param key string
+---@param highlightIfModified boolean
+function M.drawCheckbox(key, highlightIfModified)
+  local paramDef = getParamDef(key)
+  if paramDef == nil or paramDef.kind ~= 'cbox' then return end
+
+  local valueObj = paramStorage[key]
+  local value = clampParamValIfNeeded(valueObj:get(), paramDef)
+  local checked = value ~= 0
+  local needHighlight = highlightIfModified and value ~= paramDef.defaultValue
+
+  if needHighlight then
+    ui.pushStyleColor(ui.StyleColor.Text, MODIFIED_PARAM_COLOR)
+  end
+
+  local changed = ui.checkbox(paramDef.displayName .. '##' .. key, checked)
+
+  if needHighlight then
+    ui.popStyleColor()
+  end
+
+  if ui.itemHovered() and ui.mouseDown(ui.MouseButton.Right) then
+    resetParamVal(key)
+  end
+
+  if changed then
+    valueObj:set(checked and 0 or 1)
+  end
+end
+
+function M.drawCollisionSettings()
+  ui.text('Collision')
+  ui.separator()
+
+  M.drawCheckbox('disableCollisionWhenRecentered', false)
+  if ui.itemHovered() then
+    ui.setTooltip('Disables camera collisions while recentered, which can slightly reduce CPU load. Collisions resume when you manually orbit or zoom the camera.')
+  end
+  M.drawScheme('collisionHandlingMethod', false)
 end
 
 function M.drawCameraTab()

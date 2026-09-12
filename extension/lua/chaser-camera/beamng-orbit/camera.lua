@@ -13,6 +13,8 @@ local paramsBridge = ac.connect({
   dynamicFovAtSpeed = ac.StructItem.double(),
   dynamicPitchAtSpeed = ac.StructItem.double(),
   dynamicHeightAtSpeed = ac.StructItem.double(),
+  collisionHandlingMethod = ac.StructItem.uint32(),
+  disableCollisionWhenRecentered = ac.StructItem.boolean(),
 }, false, ac.SharedNamespace.Shared)
 
 local controlsBridge = ac.connect({
@@ -46,6 +48,8 @@ local cameraConfig = {
   dynamicFovAtSpeed = 40.0,
   dynamicPitchAtSpeed = 7.0,
   dynamicHeightAtSpeed = 0.4,
+  collisionHandlingMethod = 1,
+  disableCollisionWhenRecentered = false,
 }
 
 local cameraInput = {
@@ -86,6 +90,9 @@ local function syncCameraParams()
   local dynamicFovAtSpeed = paramsBridge.dynamicFovAtSpeed
   local dynamicPitchAtSpeed = paramsBridge.dynamicPitchAtSpeed
   local dynamicHeightAtSpeed = paramsBridge.dynamicHeightAtSpeed
+  local collisionHandlingMethod = paramsBridge.collisionHandlingMethod
+  local disableCollisionWhenRecentered =
+    paramsBridge.disableCollisionWhenRecentered
 
   local seqNumAfter = paramsBridge.seqNum
   if seqNumBefore ~= seqNumAfter or not paramsBridge.ready then return end
@@ -98,6 +105,9 @@ local function syncCameraParams()
   cameraConfig.dynamicFovAtSpeed = dynamicFovAtSpeed
   cameraConfig.dynamicPitchAtSpeed = dynamicPitchAtSpeed
   cameraConfig.dynamicHeightAtSpeed = dynamicHeightAtSpeed
+  cameraConfig.collisionHandlingMethod = collisionHandlingMethod
+  cameraConfig.disableCollisionWhenRecentered =
+    disableCollisionWhenRecentered
 
   lastParamsBridgeSeqNum = seqNumAfter
   paramsBridgeInitialized = true

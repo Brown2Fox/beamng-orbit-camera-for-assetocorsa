@@ -8,6 +8,8 @@
 ---@field dynamicFovAtSpeed number
 ---@field dynamicPitchAtSpeed number
 ---@field dynamicHeightAtSpeed number
+---@field collisionHandlingMethod number
+---@field disableCollisionWhenRecentered boolean
 
 ---@class BeamNGOrbitCameraInput
 ---@field yawStepRad number
@@ -41,6 +43,8 @@ local runtimeConfig = {
   dynamicFovAtSpeed = 40.0,
   dynamicPitchAtSpeedRad = math.rad(7.0),
   dynamicHeightAtSpeed = 0.4,
+  collisionHandlingMethod = 1,
+  disableCollisionWhenRecentered = false,
 }
 
 local lastCameraPitchDeg = 17.0
@@ -84,6 +88,9 @@ local COLLISION_NEAR_CLIP_HALF_WIDTH = 0.2
 local COLLISION_NEAR_CLIP_HALF_HEIGHT = 0.1
 local COLLISION_MIN_HIT_DISTANCE = 0.5
 local COLLISION_RELEASE_RATE = 7.0
+local COLLISION_HANDLING_DISABLED = 0
+local COLLISION_HANDLING_PHYSICS_SHAPES = 1
+local COLLISION_HANDLING_VISUALS = 2
 
 local MANUAL_YAW_LOCK_THRESHOLD_RAD = math.rad(10)
 local GLANCE_MOVEMENT_HEADING_START_SPEED = 2.0
@@ -97,6 +104,7 @@ local displayedPitchRad = 0.0
 local orbitDistance = 0.0
 local displayedDistance = 0.0
 local orbitInitialized = false
+local cameraOrbitActive = false
 
 local effectiveRelaxation = RELAXATION_SAFE_MIN
 
@@ -182,6 +190,7 @@ end
 
 local function resetCameraState()
   orbitInitialized = false
+  cameraOrbitActive = false
 
   lockCamera = false
   accumulatedManualYawRad = 0.0
@@ -228,9 +237,23 @@ local function applyRuntimeConfig(config)
   local dynamicFovAtSpeed = tonumber(config.dynamicFovAtSpeed) or runtimeConfig.dynamicFovAtSpeed
   local dynamicPitchAtSpeedDeg = tonumber(config.dynamicPitchAtSpeed) or lastDynamicPitchAtSpeedDeg
   local dynamicHeightAtSpeed = tonumber(config.dynamicHeightAtSpeed) or runtimeConfig.dynamicHeightAtSpeed
+  local collisionHandlingMethod = math.clamp(
+    math.floor(
+      tonumber(config.collisionHandlingMethod)
+        or runtimeConfig.collisionHandlingMethod
+    ),
+    COLLISION_HANDLING_DISABLED,
+    COLLISION_HANDLING_VISUALS
+  )
+  local disableCollisionWhenRecentered =
+    config.disableCollisionWhenRecentered == true
 
   local distanceChanged = math.abs(cameraDistance - runtimeConfig.cameraDistance) > 0.000001
   local pitchChanged = math.abs(cameraPitchDeg - lastCameraPitchDeg) > 0.000001
+  local collisionConfigChanged =
+    collisionHandlingMethod ~= runtimeConfig.collisionHandlingMethod
+    or disableCollisionWhenRecentered
+      ~= runtimeConfig.disableCollisionWhenRecentered
 
   runtimeConfig.cameraDistance = cameraDistance
   runtimeConfig.cameraFov = cameraFov
@@ -238,6 +261,11 @@ local function applyRuntimeConfig(config)
   runtimeConfig.cameraRelaxation = cameraRelaxation
   runtimeConfig.dynamicFovAtSpeed = dynamicFovAtSpeed
   runtimeConfig.dynamicHeightAtSpeed = dynamicHeightAtSpeed
+  runtimeConfig.collisionHandlingMethod = collisionHandlingMethod
+  runtimeConfig.disableCollisionWhenRecentered =
+    disableCollisionWhenRecentered
+
+  if collisionConfigChanged then resetCollisionState() end
 
   if pitchChanged then
     runtimeConfig.cameraPitchRad = math.clamp(
@@ -638,6 +666,7 @@ local function requestRecenter(keepPitchAndDistance, targetPos, carHeading)
   end
 
   lockCamera = false
+  cameraOrbitActive = false
   accumulatedManualYawRad = 0.0
   resetCollisionState()
 end
@@ -801,12 +830,25 @@ local function castCollisionRay(startPos, direction, rayLength)
   if directionLength <= 0.0001 then return rayLength end
   collisionRayDirection:set(collisionRayDirection / directionLength)
 
-  local outPosition, outNormal
-  local hitDistance = render.createRay(
-    startPos,
-    collisionRayDirection,
-    rayLength
-  ):physics(outPosition, outNormal)
+  local hitDistance
+  if runtimeConfig.collisionHandlingMethod
+      == COLLISION_HANDLING_VISUALS then
+    hitDistance = render.createRay(
+      startPos,
+      collisionRayDirection,
+      rayLength
+    ):track()
+  elseif runtimeConfig.collisionHandlingMethod
+      == COLLISION_HANDLING_PHYSICS_SHAPES then
+    local outPosition, outNormal
+    hitDistance = render.createRay(
+      startPos,
+      collisionRayDirection,
+      rayLength
+    ):physics(outPosition, outNormal)
+  else
+    return rayLength
+  end
 
   if hitDistance == nil or hitDistance < 0 then return rayLength end
   return math.min(hitDistance, rayLength)
@@ -1017,6 +1059,11 @@ function M.update(dt, targetCar, config, input)
 
   local manualRotationActive = math.abs(manualYawStepRad) > INPUT_ANGLE_EPSILON_RAD
     or math.abs(manualPitchStepRad) > INPUT_ANGLE_EPSILON_RAD
+  if manualRotationActive
+      or math.abs(zoomStep) > INPUT_ANGLE_EPSILON_RAD
+      or math.abs(zoomDistanceStep) > INPUT_ANGLE_EPSILON_RAD then
+    cameraOrbitActive = true
+  end
 
   orbitYawRad = wrapAngle(orbitYawRad + manualYawStepRad)
   orbitPitchRad = math.clamp(
@@ -1112,7 +1159,17 @@ function M.update(dt, targetCar, config, input)
     finalDirection:set(baseDirection)
   end
 
-  applyCameraCollision(targetPos, finalCameraPosition, finalDirection, dt)
+  local collisionEnabled =
+    runtimeConfig.collisionHandlingMethod ~= COLLISION_HANDLING_DISABLED
+    and (
+      not runtimeConfig.disableCollisionWhenRecentered
+      or cameraOrbitActive
+    )
+  if collisionEnabled then
+    applyCameraCollision(targetPos, finalCameraPosition, finalDirection, dt)
+  else
+    resetCollisionState()
+  end
 
   outputPose.position:set(finalCameraPosition)
   outputPose.direction:set(finalDirection)
