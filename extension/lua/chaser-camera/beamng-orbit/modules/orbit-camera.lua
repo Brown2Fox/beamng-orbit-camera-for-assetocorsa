@@ -378,7 +378,7 @@ local function updateGlanceForward(dt, input, carHeading, velocity, normalForwar
   local glanceLeft = input.glanceLeft == true
   local glanceRight = input.glanceRight == true
   local glanceBack = input.glanceBack == true
-  local nextGlanceMode = glanceBack and 3
+  local nextGlanceMode = glanceBack and (glanceLeft ~= glanceRight and (glanceLeft and 4 or 5) or 3)
     or glanceLeft ~= glanceRight and (glanceLeft and 1 or 2)
     or 0
 
@@ -407,8 +407,10 @@ local function updateGlanceForward(dt, input, carHeading, velocity, normalForwar
     if nextGlanceMode == 3 then
       glanceTargetForward:set(glanceBaseHeading * -1)
     else
+      local glanceAngle = (nextGlanceMode == 4 or nextGlanceMode == 5) and math.pi * 0.75 or math.pi * 0.5
+      if nextGlanceMode == 2 or nextGlanceMode == 5 then glanceAngle = -glanceAngle end
       glanceBaseHeading:rotate(
-        quat.fromAngleAxis(nextGlanceMode == 1 and math.pi * 0.5 or -math.pi * 0.5, WORLD_UP),
+        quat.fromAngleAxis(glanceAngle, WORLD_UP),
         glanceTargetForward
       )
     end

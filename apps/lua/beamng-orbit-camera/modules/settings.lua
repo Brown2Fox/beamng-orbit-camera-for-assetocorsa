@@ -42,6 +42,7 @@ local cameraParams = {
 }
 
 local controlParams = {
+  disableGlance = { displayName = 'Disable glance left/right/back', defaultValue = 0, kind = 'cbox' },
   gamepadControlScheme = { displayName = 'Control scheme', defaultValue = 2, options = GAMEPAD_CONTROL_SCHEMES, kind = 'scheme' },
   mouseControlScheme = { displayName = 'Control scheme', defaultValue = 1, options = MOUSE_CONTROL_SCHEMES, kind = 'scheme' },
   orbitStickDeadzone = { displayName = 'Orbit deadzone', defaultValue = 0.03, minValue = 0.0, maxValue = 0.95, format = '%.2f', kind = 'slider' },

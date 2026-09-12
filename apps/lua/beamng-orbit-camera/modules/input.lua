@@ -205,9 +205,10 @@ function M.update(dt)
 
   cameraInput.recenterPressed = recenterButton:pressed()
   cameraInput.recenterKeepValuesPressed = recenterKeepValuesButton:pressed()
-  cameraInput.glanceLeft = glanceLeftButton:down()
-  cameraInput.glanceRight = glanceRightButton:down()
-  cameraInput.glanceBack = glanceBackButton:down()
+  local glanceEnabled = Settings.get('disableGlance') == 0
+  cameraInput.glanceLeft = glanceEnabled and glanceLeftButton:down()
+  cameraInput.glanceRight = glanceEnabled and glanceRightButton:down()
+  cameraInput.glanceBack = glanceEnabled and glanceBackButton:down()
 
   yawTotalRad = yawTotalRad + cameraInput.yawStepRad
   pitchTotalRad = pitchTotalRad + cameraInput.pitchStepRad
@@ -317,6 +318,15 @@ function M.drawControlsTab()
   ui.separator()
 
   Settings.drawScheme('mouseControlScheme', false)
+
+  ui.newLine()
+  ui.text('Additional')
+  ui.separator()
+
+  Settings.drawCheckbox('disableGlance', false)
+  if ui.itemHovered() then
+    ui.setTooltip('Disables camera response to the game glance left, right and back controls.')
+  end
 end
 
 return M
