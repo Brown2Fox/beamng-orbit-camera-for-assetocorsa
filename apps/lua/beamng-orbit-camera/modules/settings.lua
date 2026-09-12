@@ -34,7 +34,7 @@ local cameraParams = {
   cameraDistance = { displayName = 'Distance', defaultValue = 5.0, minValue = 3.0, maxValue = 30.0, format = '%.1f m', kind = 'slider' },
   cameraFov = { displayName = 'Field of view', defaultValue = 65.0, minValue = 45.0, maxValue = 85.0, format = '%.0f°', kind = 'slider' },
   cameraPitch = { displayName = 'Pitch', defaultValue = 17.0, minValue = -85.0, maxValue = 85.0, format = '%.0f°', kind = 'slider' },
-  cameraTargetHeightOffset = { displayName = 'Target height offset', defaultValue = 0.0, minValue = -1.0, maxValue = 1.0, format = '%.2f m', kind = 'slider' },
+  cameraTargetHeightOffset = { displayName = 'Height', defaultValue = 0.0, minValue = -1.0, maxValue = 1.0, format = '%.2f m', kind = 'slider' },
   cameraRelaxation = { displayName = 'Follow vehicle direction', defaultValue = 6.0, minValue = 0.2, maxValue = 6.0, format = '%.2f', kind = 'slider' },
   dynamicFovAtSpeed = { displayName = 'Field of view', defaultValue = 40.0, minValue = 0.0, maxValue = 75.0, format = '%.0f°', kind = 'slider' },
   dynamicPitchAtSpeed = { displayName = 'Pitch', defaultValue = 7.0, minValue = 0.0, maxValue = 25.0, format = '%.1f°', kind = 'slider' },
@@ -155,6 +155,70 @@ local UINT32_WRAP = 4294967296
 local MODIFIED_PARAM_COLOR = rgbm.colors.yellow
 local fullWidthSize = vec2()
 local paramsPublished = false
+local recenterRequested = false
+local recenterKeepValuesRequested = false
+local liveValuePosition = vec2()
+local liveCameraValues = {
+  active = false,
+  cameraDistance = 0.0,
+  cameraFov = 0.0,
+  cameraPitch = 0.0,
+  cameraTargetHeightOffset = 0.0,
+  orbitDistance = 0.0,
+  orbitPitch = 0.0,
+}
+
+local LIVE_CAMERA_VALUE_KEYS = {
+  cameraDistance = 'cameraDistance',
+  cameraFov = 'cameraFov',
+  cameraPitch = 'cameraPitch',
+  cameraTargetHeightOffset = 'cameraTargetHeightOffset',
+}
+
+---@param active boolean
+---@param distance number
+---@param fov number
+---@param pitch number
+---@param height number
+---@param orbitDistance number
+---@param orbitPitch number
+function M.setLiveCameraValues(active, distance, fov, pitch, height, orbitDistance, orbitPitch)
+  liveCameraValues.active = active
+  liveCameraValues.cameraDistance = distance
+  liveCameraValues.cameraFov = fov
+  liveCameraValues.cameraPitch = pitch
+  liveCameraValues.cameraTargetHeightOffset = height
+  liveCameraValues.orbitDistance = orbitDistance
+  liveCameraValues.orbitPitch = orbitPitch
+end
+
+local function setDistanceAndPitchFromOrbit()
+  if not liveCameraValues.active then return end
+  setParamVal('cameraDistance', clampParamValIfNeeded(
+    liveCameraValues.orbitDistance,
+    cameraParams.cameraDistance
+  ))
+  setParamVal('cameraPitch', clampParamValIfNeeded(
+    liveCameraValues.orbitPitch,
+    cameraParams.cameraPitch
+  ))
+end
+
+---@param keepPitchAndDistance boolean
+function M.requestRecenter(keepPitchAndDistance)
+  recenterRequested = true
+  recenterKeepValuesRequested = keepPitchAndDistance
+end
+
+---@return boolean requested
+---@return boolean keepPitchAndDistance
+function M.consumeRecenterRequest()
+  local requested = recenterRequested
+  local keepPitchAndDistance = recenterKeepValuesRequested
+  recenterRequested = false
+  recenterKeepValuesRequested = false
+  return requested, keepPitchAndDistance
+end
 
 function M.update()
   local cameraConfig = M.cameraConfig
@@ -243,6 +307,7 @@ function M.drawSlider(key, highlightIfModified)
     ui.pushStyleColor(ui.StyleColor.Text, MODIFIED_PARAM_COLOR)
   end
 
+  ui.pushItemWidth(ui.availableSpaceX())
   local newValue, changed = ui.slider(
     '##' .. key,
     value,
@@ -250,6 +315,16 @@ function M.drawSlider(key, highlightIfModified)
     paramDef.maxValue,
     paramDef.format
   )
+  ui.popItemWidth()
+
+  local liveValueKey = LIVE_CAMERA_VALUE_KEYS[key]
+  if liveCameraValues.active and liveValueKey ~= nil then
+    local liveValueText = string.format(paramDef.format, liveCameraValues[liveValueKey])
+    local itemMax = ui.itemRectMax()
+    local textSize = ui.measureText(liveValueText)
+    liveValuePosition:set(itemMax.x - textSize.x - 4, itemMax.y - textSize.y - 1)
+    ui.drawText(liveValueText, liveValuePosition, ui.styleColor(ui.StyleColor.TextDisabled))
+  end
 
   if needHighlight then
     ui.popStyleColor()
@@ -347,6 +422,9 @@ end
 
 function M.drawCameraTab()
   ui.text('Camera')
+  if ui.itemHovered() then
+    ui.setTooltip('Gray values show the camera\'s actual values, including offsets at speed and manual orbit adjustments.')
+  end
   ui.separator()
 
   M.drawSlider('cameraDistance', true)
@@ -356,7 +434,10 @@ function M.drawCameraTab()
   M.drawSlider('cameraRelaxation', true)
 
   ui.newLine()
-  ui.text('Offsets at speed (current value + value below * speed factor)')
+  ui.text('Offsets at speed')
+  if ui.itemHovered() then
+    ui.setTooltip('Resulting value = current value + value below × speed factor.')
+  end
   ui.separator()
 
   M.drawSlider('dynamicFovAtSpeed', true)
@@ -364,8 +445,29 @@ function M.drawCameraTab()
   M.drawSlider('dynamicHeightAtSpeed', true)
 
   ui.newLine()
+  fullWidthSize:set((ui.availableSpaceX() - 8) / 2, 0)
+  if ui.button('Recenter', fullWidthSize) then
+    M.requestRecenter(false)
+  end
+  if ui.itemHovered() then
+    ui.setTooltip('Recenters the camera and restores its actual distance and pitch from the current settings.')
+  end
+  ui.sameLine(0, 8)
+  if ui.button('Recenter, keep pitch/distance', fullWidthSize) then
+    M.requestRecenter(true)
+  end
+  if ui.itemHovered() then
+    ui.setTooltip('Recenters the camera while keeping its actual distance and pitch.')
+  end
   fullWidthSize:set(ui.availableSpaceX(), 0)
-  if ui.button('Reset all to defaults', fullWidthSize) then
+  if ui.button('Capture current pitch/distance', fullWidthSize) then
+    setDistanceAndPitchFromOrbit()
+  end
+  if ui.itemHovered() then
+    ui.setTooltip('Copies the actual camera distance and pitch to the settings.')
+  end
+  fullWidthSize:set(ui.availableSpaceX(), 0)
+  if ui.button('Reset all values to default', fullWidthSize) then
     resetCameraParams()
   end
 end

@@ -37,6 +37,12 @@ local controlsBridge = ac.connect({
 local cameraBridge = ac.connect({
   ac.StructItem.key('beamng_orbit_camera.camera_bridge'),
   cameraIndex = ac.StructItem.uint32(),
+  currentPitch = ac.StructItem.double(),
+  currentDistance = ac.StructItem.double(),
+  currentFov = ac.StructItem.double(),
+  currentHeight = ac.StructItem.double(),
+  orbitPitch = ac.StructItem.double(),
+  orbitDistance = ac.StructItem.double(),
 }, false, ac.SharedNamespace.Shared)
 
 local cameraConfig = {
@@ -207,6 +213,12 @@ function update(dt, cameraIndex)
   )
 
   if pose then
+    cameraBridge.currentPitch = pose.currentPitch
+    cameraBridge.currentDistance = pose.currentDistance
+    cameraBridge.currentFov = pose.currentFov
+    cameraBridge.currentHeight = pose.currentHeight
+    cameraBridge.orbitPitch = pose.orbitPitch
+    cameraBridge.orbitDistance = pose.orbitDistance
     ac.Camera.position = pose.position
     ac.Camera.direction = pose.direction
     ac.Camera.up = pose.up

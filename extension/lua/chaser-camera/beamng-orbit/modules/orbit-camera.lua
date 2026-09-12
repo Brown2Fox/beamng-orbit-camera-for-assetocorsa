@@ -27,6 +27,12 @@
 ---@field direction vec3
 ---@field up vec3
 ---@field fov number
+---@field currentPitch number
+---@field currentDistance number
+---@field currentFov number
+---@field currentHeight number
+---@field orbitPitch number
+---@field orbitDistance number
 
 ---@class BeamNGOrbitCameraModule
 local M = {}
@@ -56,6 +62,12 @@ local outputPose = {
   direction = vec3(0, 0, 1),
   up = vec3(0, 1, 0),
   fov = 65.0,
+  currentPitch = 17.0,
+  currentDistance = 5.0,
+  currentFov = 65.0,
+  currentHeight = 0.0,
+  orbitPitch = 17.0,
+  orbitDistance = 5.0,
 }
 
 
@@ -1175,6 +1187,12 @@ function M.update(dt, targetCar, config, input)
   outputPose.direction:set(finalDirection)
   outputPose.up:set(WORLD_UP)
   outputPose.fov = dynamicFov
+  outputPose.currentPitch = math.deg(displayedPitchRad + dynamicPitchAngleRad)
+  outputPose.currentDistance = dynamicDistance
+  outputPose.currentFov = dynamicFov
+  outputPose.currentHeight = runtimeConfig.cameraTargetHeightOffset + heightOffset
+  outputPose.orbitPitch = math.deg(orbitPitchRad)
+  outputPose.orbitDistance = orbitDistance
   lastAppliedFov = dynamicFov
   return outputPose
 end

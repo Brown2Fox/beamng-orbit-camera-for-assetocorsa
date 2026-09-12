@@ -14,7 +14,21 @@ local playerWasInPit = false
 local cameraBridge = ac.connect({
   ac.StructItem.key('beamng_orbit_camera.camera_bridge'),
   cameraIndex = ac.StructItem.uint32(),
+  currentPitch = ac.StructItem.double(),
+  currentDistance = ac.StructItem.double(),
+  currentFov = ac.StructItem.double(),
+  currentHeight = ac.StructItem.double(),
+  orbitPitch = ac.StructItem.double(),
+  orbitDistance = ac.StructItem.double(),
 }, false, ac.SharedNamespace.Shared)
+
+local function requestRecenter(keepValues)
+    if keepValues then
+      Input.cameraInput.recenterKeepValuesPressed = true
+    else
+      Input.cameraInput.recenterPressed = true
+    end
+end
 
 local function updateAutomaticRecenter()
   local playerCar = ac.getCar(0)
@@ -24,7 +38,7 @@ local function updateAutomaticRecenter()
 
   local playerInPit = playerCar.isInPit
   if playerInPit and not playerWasInPit then
-    Input.cameraInput.recenterKeepValuesPressed = true
+    requestRecenter(true)
   end
   playerWasInPit = playerInPit
 end
@@ -32,8 +46,14 @@ end
 ac.onSessionStart(function(_, restarted)
   if not restarted then return end
 
-  Input.cameraInput.recenterKeepValuesPressed = true
+  requestRecenter(true)
 end)
+
+local function settingsUpdate()
+  local recenterRequested, keepValues = Settings.consumeRecenterRequest()
+  if recenterRequested then requestRecenter(keepValues) end
+  Settings.update()
+end
 
 ---@param dt number
 ---@diagnostic disable-next-line: duplicate-set-field
@@ -47,12 +67,22 @@ function script.update(dt)
                  cameraIndex == 1 and sim.driveableCameraMode == ac.DrivableCamera.Chase or
                  cameraIndex == 2 and sim.driveableCameraMode == ac.DrivableCamera.Chase2
   local shouldUpdate = cameraActive or
-                       ObsIntegration.enabled
+                        ObsIntegration.enabled
+
+  Settings.setLiveCameraValues(
+    cameraActive,
+    cameraBridge.currentDistance,
+    cameraBridge.currentFov,
+    cameraBridge.currentPitch,
+    cameraBridge.currentHeight,
+    cameraBridge.orbitDistance,
+    cameraBridge.orbitPitch
+  )
 
   if shouldUpdate then
     if cameraActive then
       Input.update(dt)
-      Settings.update()
+      settingsUpdate()
     end
 
     updateAutomaticRecenter()
