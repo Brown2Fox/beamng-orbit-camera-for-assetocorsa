@@ -94,10 +94,28 @@ function script.update(dt)
   end
 end
 
+local tabContentSize = vec2()
+local STATUS_BAR_GAP = 8
+local SCROLLBAR_CONTENT_GAP = 8
+
+local function drawTab(label, content)
+  ui.tabItem(label, function()
+    tabContentSize:set(ui.availableSpace())
+    tabContentSize.y = tabContentSize.y - ui.measureText('C').y - STATUS_BAR_GAP
+    if tabContentSize.y <= 0 then return end
+    ui.childWindow('content', tabContentSize, function()
+      local scrollbarGap = ui.getScrollMaxY() > 0 and SCROLLBAR_CONTENT_GAP or 0
+      ui.beginGroup(math.max(1, ui.availableSpaceX() - scrollbarGap))
+      content()
+      ui.endGroup()
+    end)
+  end)
+end
+
 local function drawTabs()
-  ui.tabItem('Camera', Settings.drawCameraTab)
-  ui.tabItem('Controls', Input.drawControlsTab)
-  ui.tabItem('Extras', Extras.drawExtrasTab)
+  drawTab('Camera', Settings.drawCameraTab)
+  drawTab('Controls', Input.drawControlsTab)
+  drawTab('Extras', Extras.drawExtrasTab)
 end
 
 local function drawStatusBar()
