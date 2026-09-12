@@ -117,11 +117,9 @@ function M.drawObsIntegrationTab()
     setEnabled(not M.enabled)
   end
 
-  ui.pushStyleColor(ui.StyleColor.Text, rgbm.colors.gray)
-  ui.textWrapped(
-    'If OBS Integration is enabled while this camera is active as the chase camera, its camera logic will run twice per frame.'
-  )
-  ui.popStyleColor()
+  if ui.itemHovered() then
+    ui.setTooltip('If OBS Integration is enabled while this camera is active as the chase camera, its camera logic will run twice per frame.')
+  end
 end
 
 ac.onRelease(function()
