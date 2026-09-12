@@ -41,7 +41,6 @@ This is a nearly 1:1 behavioral port of the BeamNG.drive orbit camera. The follo
 - Smooth rendered yaw behavior
 - Near-clip-aware camera collisions
 - Collision pull-in and smooth release
-- Optional vehicle-specific reference nodes
 
 ## Mod Structure
 
@@ -66,11 +65,21 @@ After installation:
 
 Camera and input settings are configured from the **BeamNG Orbit Camera** Lua app while you are in a session.
 
+In smaller windows, tab contents scroll above the status bar. Status indicators appear only while the camera or OBS integration is active.
+
 The **Camera** tab contains the camera parameters:
 
 ![](res/lua_app_camera.png?raw=true)
 
 Most values follow the corresponding BeamNG.drive orbit-camera settings and ranges.
+
+While the camera is active, gray readouts show its current distance, FOV, pitch and height, including speed offsets and manual orbit adjustments.
+
+- **Recenter** returns the camera behind the car and restores the pitch and distance from the settings.
+- **Recenter, keep pitch/distance** returns the camera behind the car while preserving the current orbit pitch and distance.
+- **Capture current pitch/distance** saves the current orbit pitch and distance to the settings, without the additional speed offsets.
+
+**Follow vehicle direction** supports values down to 0.2. Values below 0.5 gradually take effect at higher speeds while keeping the camera less reactive at low speeds.
 
 The camera ignores the standard Assetto Corsa chase-camera distance, height and pitch settings and uses its own values instead. This is intentional so all relevant camera settings can be adjusted from one place and tested immediately in-session.
 
@@ -82,15 +91,39 @@ The **Controls** tab contains common bindable actions and specifics for gamepad 
 
 The gamepad and mouse are implemented using *predefined control schemes* to reduce the number of possible moving parts. And also because, in any case, there is no convenient way to assign gamepad axes and mouse buttons.
 
+The camera uses the gamepad selected in the game's control settings.
+
+Standard glance left/right/back controls are enabled by default. Hold **left + back** or **right + back** for a front-left or front-right view at 45 degrees. **Controls → Additional → Disable glance left/right/back** disables the camera's response to these controls.
+
 ## Mod Specifics
 
-### Obs Integration
+The **Extras** tab contains collision settings and OBS integration:
 
-The camera is available in OBS as a custom `BeamNG Orbit Camera` source.
+![](res/lua_app_extras.png?raw=true)
+
+### Collisions
+
+**Extras → Collision** offers three handling modes: **Disabled**, **Collision with physics shapes** (default), and **Collision with visuals**.
+
+**Disable collision for recentered camera** is off by default. Enabling it skips collision checks while the camera is recentered, which can slightly reduce CPU load. Collision checks resume after manual orbit or zoom input when a collision handling mode is enabled.
+
+### OBS Integration
+
+Enable **Extras → Enable OBS integration** to make the camera available in OBS as a custom `BeamNG Orbit Camera` source. Integration is off by default.
 
 **_Caution:_** If OBS Integration is enabled while this camera is active as the chase camera, its camera logic will run **twice** per frame.
 
 Unfortunately, running the camera logic only once causes jitter (and/or other misbehaviors) because the in-game camera and OBS source are updated from different contexts.
+
+## Release archive
+
+Run from the project root with PowerShell 7:
+
+```powershell
+pwsh -File tools/package_release.ps1
+```
+
+Creates `dist/beamng-orbit-camera-<version>.zip` with the `apps/` and `extension/` folders ready for installation. The version comes from the manifests, which must agree. `dist/` is ignored by Git. See [packaging notes](tools/README.md).
 
 ## How to uninstall
 
