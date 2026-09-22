@@ -5,6 +5,9 @@ local Settings = {}
 ---@class BeamNGOrbitCameraInput
 local M = {}
 
+local cspMajor, cspMinor = (ac.getPatchVersion() or ''):match('^(%d+)%.(%d+)')
+local supportsMouse = (tonumber(cspMajor) or 0) > 0 or (tonumber(cspMinor) or 0) >= 3
+
 local ORBIT_YAW_SPEED_RAD = math.rad(100)
 local ORBIT_PITCH_SPEED_RAD = math.rad(50)
 local MOUSE_ORBIT_SENSITIVITY_RAD = math.rad(0.12)
@@ -192,7 +195,8 @@ function M.update(dt)
   cameraInput.zoomStep = zoomInput * dt
   cameraInput.zoomDistanceStep = 0
 
-  if Settings.get('mouseControlScheme') == 1 and ui.mouseDown(ui.MouseButton.Right) then
+  if supportsMouse
+      and Settings.get('mouseControlScheme') == 1 and ui.mouseDown(ui.MouseButton.Right) then
     local mouseDelta = ac.accessMouseDelta('camera', true, false)
     local mouseWheelDelta = ui.mouseWheel()
 
@@ -313,11 +317,13 @@ function M.drawControlsTab()
     end)
   end
 
-  ui.newLine()
-  ui.text('Mouse')
-  ui.separator()
+  if supportsMouse then
+    ui.newLine()
+    ui.text('Mouse')
+    ui.separator()
 
-  Settings.drawScheme('mouseControlScheme', false)
+    Settings.drawScheme('mouseControlScheme', false)
+  end
 
   ui.newLine()
   ui.text('Additional')

@@ -6,7 +6,7 @@ local Extras = require('modules/extras')
 
 Input.setSettings(Settings)
 
-local VERSION_TEXT = 'Ver: 1.2.0'
+local VERSION_TEXT = 'Ver: 1.2.1'
 local cameraIndex = -1;
 local cameraActive = false
 local playerWasInPit = false

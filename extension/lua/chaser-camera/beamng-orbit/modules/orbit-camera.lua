@@ -36,6 +36,10 @@
 
 ---@class BeamNGOrbitCameraModule
 local M = {}
+
+local cspMajor, cspMinor = (ac.getPatchVersion() or ''):match('^(%d+)%.(%d+)')
+local supportsCollisions = (tonumber(cspMajor) or 0) > 0 or (tonumber(cspMinor) or 0) >= 3
+
 ---@type ac.StateCar
 local car = nil
 local currentCarIndex = -1
@@ -1174,7 +1178,8 @@ function M.update(dt, targetCar, config, input)
   end
 
   local collisionEnabled =
-    runtimeConfig.collisionHandlingMethod ~= COLLISION_HANDLING_DISABLED
+    supportsCollisions
+    and runtimeConfig.collisionHandlingMethod ~= COLLISION_HANDLING_DISABLED
     and (
       not runtimeConfig.disableCollisionWhenRecentered
       or cameraOrbitActive

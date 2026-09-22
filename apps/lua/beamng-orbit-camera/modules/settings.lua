@@ -2,6 +2,9 @@
 ---@class BeamNGOrbitCameraSettings
 local M = {}
 
+local cspMajor, cspMinor = (ac.getPatchVersion() or ''):match('^(%d+)%.(%d+)')
+local supportsCollisions = (tonumber(cspMajor) or 0) > 0 or (tonumber(cspMinor) or 0) >= 3
+
 local GAMEPAD_CONTROL_SCHEMES = {
   [0] = 'Disabled',
   [1] = 'Right Stick — Orbit',
@@ -411,6 +414,8 @@ function M.drawCheckbox(key, highlightIfModified)
 end
 
 function M.drawCollisionSettings()
+  if not supportsCollisions then return end
+
   ui.text('Collision')
   ui.separator()
 
