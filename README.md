@@ -49,6 +49,12 @@ The mod consists of two parts:
 1. **Lua app** — stores the camera settings, provides the configuration UI, handles control bindings and supplies input to the camera script.
 2. **Chaser camera script** — contains the actual camera logic and runs as a CSP custom chaser camera.
 
+## Requirements
+
+- Assetto Corsa with Custom Shaders Patch (CSP).
+- CSP **0.3.0-preview120 or newer** for mouse controls and camera collisions. On CSP below 0.3, these features are disabled and their settings are hidden.
+- Content Manager is recommended for installation and setup.
+
 ## How to install
 
 The easiest way to install the mod is to drag the archive into Content Manager and press install. It's properly packed mod zip archive, so Content Manager should handle this fine.
