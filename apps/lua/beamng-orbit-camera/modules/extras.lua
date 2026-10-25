@@ -1,3 +1,4 @@
+---@class ExtrasModule
 local M = {}
 local ObsIntegration = require('modules/obs-integration')
 local Settings = require('modules/settings')

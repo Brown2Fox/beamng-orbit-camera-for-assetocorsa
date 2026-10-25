@@ -45,6 +45,7 @@ local cameraBridge = ac.connect({
   orbitDistance = ac.StructItem.double(),
 }, false, ac.SharedNamespace.Shared)
 
+---@type BeamNGOrbitCameraConfig
 local cameraConfig = {
   cameraDistance = 5.0,
   cameraFov = 65.0,
@@ -58,6 +59,7 @@ local cameraConfig = {
   disableCollisionWhenRecentered = false,
 }
 
+---@type BeamNGOrbitCameraInput
 local cameraInput = {
   yawStepRad = 0.0,
   pitchStepRad = 0.0,
@@ -119,7 +121,7 @@ local function syncCameraParams()
   paramsBridgeInitialized = true
 end
 
----@return table
+---@return BeamNGOrbitCameraInput
 local function readControlsInput()
   cameraInput.yawStepRad = 0
   cameraInput.pitchStepRad = 0
@@ -195,7 +197,6 @@ end
 
 ---@param dt number
 ---@param cameraIndex integer
----@diagnostic disable-next-line: lowercase-global
 function update(dt, cameraIndex)
   syncCameraParams()
 

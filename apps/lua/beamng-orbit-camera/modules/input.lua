@@ -1,8 +1,8 @@
 
----@type BeamNGOrbitCameraSettings
-local Settings = {}
+---@type BeamNGOrbitCameraSettingsModule?
+local Settings = nil
 
----@class BeamNGOrbitCameraInput
+---@class BeamNGOrbitCameraInputModule
 local M = {}
 
 local cspMajor, cspMinor = (ac.getPatchVersion() or ''):match('^(%d+)%.(%d+)')
@@ -29,9 +29,11 @@ local glanceBackButton = ac.ControlButton('GLANCEBACK')
 
 local zoomModifierButton = ac.ControlButton('beamng_orbit_camera.zoom_modifier_gamepad', { hold = false })
 
+---@type integer
 local commonControlFlags = ui.ControlButtonControlFlags.AlterRealConfig
   + ui.ControlButtonControlFlags.NoHoldSwitch
 
+---@type integer
 local gamepadControlFlags = commonControlFlags
   + ui.ControlButtonControlFlags.SingleEntry
   + ui.ControlButtonControlFlags.Gamepad
@@ -53,11 +55,12 @@ local controlsBridge = ac.connect({
   glanceBack = ac.StructItem.boolean(),
 }, false, ac.SharedNamespace.Shared)
 
-local yawTotalRad = controlsBridge.yawTotalRad or 0
-local pitchTotalRad = controlsBridge.pitchTotalRad or 0
-local zoomTotal = controlsBridge.zoomTotal or 0
-local zoomDistanceTotal = controlsBridge.zoomDistanceTotal or 0
+local yawTotalRad = controlsBridge.yawTotalRad or 0.0 ---@type number
+local pitchTotalRad = controlsBridge.pitchTotalRad or 0.0 ---@type number
+local zoomTotal = controlsBridge.zoomTotal or 0.0 ---@type number
+local zoomDistanceTotal = controlsBridge.zoomDistanceTotal or 0.0 ---@type number
 
+---@type BeamNGOrbitCameraInput
 M.cameraInput = {
   yawStepRad = 0.0,
   pitchStepRad = 0.0,
@@ -70,7 +73,7 @@ M.cameraInput = {
   glanceBack = false,
 }
 
----@param settings BeamNGOrbitCameraSettings
+---@param settings BeamNGOrbitCameraSettingsModule
 function M.setSettings(settings)
   Settings = settings
 end
@@ -88,14 +91,13 @@ ac.onControlSettingsChanged(reloadGamepadIndex)
 
 ---@param value number
 ---@param deadzone number
----@param exponent number
 ---@return number
-local function shapeGamepadAxis(value, deadzone, exponent)
+local function shapeGamepadAxis(value, deadzone)
   local magnitude = math.abs(value or 0)
   if magnitude <= deadzone then return 0 end
 
-  local normalized = math.min(1, (magnitude - deadzone) / (1 - deadzone))
-  return math.sign(value) * normalized ^ exponent
+  -- local normalized = math.min(1, (magnitude - deadzone) / (1 - deadzone))
+  return value
 end
 
 ---@param stickIndex integer 0 — Left, 1 — Right
@@ -103,8 +105,8 @@ end
 local function readGamepadStick(stickIndex)
   if type(ac.getGamepadAxisValue) ~= 'function' then return 0, 0 end
 
-  local xAxis
-  local yAxis
+  local xAxis = 0.0
+  local yAxis = 0.0
   if stickIndex == 0 then
     xAxis = ac.GamepadAxis and ac.GamepadAxis.LeftThumbX or 2
     yAxis = ac.GamepadAxis and ac.GamepadAxis.LeftThumbY or 3
@@ -119,28 +121,29 @@ end
 ---@param stickIndex integer 0 — Left, 1 — Right
 ---@return number
 local function readZoomAxis(stickIndex)
-  local _, y = readGamepadStick(stickIndex)
-  return -shapeGamepadAxis(
-    y,
-    Settings.get('zoomStickDeadzone'),
-    Settings.get('zoomStickExponent')
-  )
+  if Settings == nil then return 0 end
+
+  local deadzone = Settings.get('zoomStickDeadzone')
+
+  local _, yRaw = readGamepadStick(stickIndex)
+
+  local y = -shapeGamepadAxis(yRaw, deadzone)
+  return y
 end
 
 ---@return number yawInput, number pitchInput
 local function readGamepadOrbit()
+  if Settings == nil then return 0, 0 end
+
   if Settings.get('gamepadControlScheme') == 0 then return 0, 0 end
 
-  local x, y = readGamepadStick(1)
-  return -shapeGamepadAxis(
-    x,
-    Settings.get('orbitStickDeadzone'),
-    Settings.get('orbitStickExponent')
-  ), -shapeGamepadAxis(
-    y,
-    Settings.get('orbitStickDeadzone'),
-    Settings.get('orbitStickExponent')
-  )
+  local deadzone = Settings.get('orbitStickDeadzone')
+
+  local xRaw, yRaw = readGamepadStick(1)
+
+  local x = -shapeGamepadAxis(xRaw, deadzone)
+  local y = -shapeGamepadAxis(yRaw, deadzone)
+  return x, y
 end
 
 ---@return number yawInput, number pitchInput
@@ -164,14 +167,27 @@ local function readButtonZoom()
   return zoom
 end
 
+---@param a number
+---@param b number
+---@return number
+local function maxAbs(a, b)
+  return math.abs(a) > math.abs(b) and a or b
+end
+
 ---@param dt number
 function M.update(dt)
+  if Settings == nil then return end
+
   local cameraInput = M.cameraInput
   local gamepadYawInput, gamepadPitchInput = readGamepadOrbit()
   local buttonYawInput, buttonPitchInput = readButtonOrbit()
+  local buttonZoomInput = readButtonZoom()
+
+  local orbitSens = Settings.get('orbitSens')
+  local zoomSens = Settings.get('zoomSens')
 
   local gamepadControlScheme = Settings.get('gamepadControlScheme')
-  local gamepadZoomInput = 0
+  local gamepadZoomInput = 0.0
 
   if zoomModifierButton:down() then
     if gamepadControlScheme == 2 then
@@ -186,9 +202,9 @@ function M.update(dt)
     end
   end
 
-  local yawInput = math.clamp(gamepadYawInput + buttonYawInput, -1, 1)
-  local pitchInput = math.clamp(gamepadPitchInput + buttonPitchInput, -1, 1)
-  local zoomInput = math.clamp(gamepadZoomInput + readButtonZoom(), -1, 1)
+  local yawInput = maxAbs(gamepadYawInput, math.clamp(buttonYawInput, -1, 1)) * orbitSens
+  local pitchInput = maxAbs(gamepadPitchInput, math.clamp(buttonPitchInput, -1, 1)) * orbitSens
+  local zoomInput = maxAbs(gamepadZoomInput, math.clamp(buttonZoomInput, -1, 1)) * zoomSens
 
   cameraInput.yawStepRad = yawInput * ORBIT_YAW_SPEED_RAD * dt
   cameraInput.pitchStepRad = pitchInput * ORBIT_PITCH_SPEED_RAD * dt
@@ -197,7 +213,7 @@ function M.update(dt)
 
   if supportsMouse
       and Settings.get('mouseControlScheme') == 1 and ui.mouseDown(ui.MouseButton.Right) then
-    local mouseDelta = ac.accessMouseDelta('camera', true, false)
+    local mouseDelta = ac.accessMouseDelta('camera', true, false) ---@type vec2
     local mouseWheelDelta = ui.mouseWheel()
 
     cameraInput.yawStepRad = cameraInput.yawStepRad
@@ -278,6 +294,14 @@ local function drawZoomModifierBinding()
 end
 
 function M.drawControlsTab()
+  if Settings == nil then return end
+
+  ui.text('Common')
+  Settings.drawSlider('orbitSens', true)
+  Settings.drawSlider('zoomSens', true)
+
+  ui.separator()
+
   ui.text('Bindings')
   ui.separator()
 
@@ -308,11 +332,9 @@ function M.drawControlsTab()
   if controlScheme ~= 0 then
     ui.treeNode('Advanced', function()
       Settings.drawSlider('orbitStickDeadzone', true)
-      Settings.drawSlider('orbitStickExponent', true)
 
       if controlScheme >= 2 then
         Settings.drawSlider('zoomStickDeadzone', true)
-        Settings.drawSlider('zoomStickExponent', true)
       end
     end)
   end

@@ -14,3 +14,6 @@ $RECYCLE.BIN/
 .idea/
 .vscode/
 /dist/
+.luarc.json
+.emmyrc.json
+*.code-workspace

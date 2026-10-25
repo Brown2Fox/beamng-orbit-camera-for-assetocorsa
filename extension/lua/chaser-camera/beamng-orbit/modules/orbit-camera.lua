@@ -40,8 +40,7 @@ local M = {}
 local cspMajor, cspMinor = (ac.getPatchVersion() or ''):match('^(%d+)%.(%d+)')
 local supportsCollisions = (tonumber(cspMajor) or 0) > 0 or (tonumber(cspMinor) or 0) >= 3
 
----@type ac.StateCar
-local car = nil
+local car = nil ---@type ac.StateCar?
 local currentCarIndex = -1
 
 local runtimeConfig = {
@@ -73,7 +72,6 @@ local outputPose = {
   orbitPitch = 17.0,
   orbitDistance = 5.0,
 }
-
 
 local VEC3_ZERO = vec3(0, 0, 0)
 local WORLD_UP = vec3(0, 1, 0)
@@ -141,10 +139,9 @@ local glanceMode = 0
 
 local recenterWorldForward = vec3()
 
-
 local timeSinceManualRotation = 1000.0
 local abovePitchSpeedThreshold = false
-local belowPitchThresholdTimer = nil
+local belowPitchThresholdTimer = nil ---@type number?
 local dynamicPitchBlend = 0.0
 local dynamicPitchVelocity = 0.0
 
@@ -175,7 +172,6 @@ local aabbRearBottomLocal = vec3()
 local aabbRearPoint = vec3()
 local rearReferencePoint = vec3()
 local rearBottomPoint = vec3()
-local targetReferencePosition = vec3()
 local defaultCameraOffsetLocal = vec3()
 local defaultCameraOffsetWorld = vec3()
 local toRearReference = vec3()
@@ -184,7 +180,7 @@ local toRearBottom = vec3()
 local carPositionLocal = vec3()
 
 local collisionUseRaycast = true
-local collisionLastDistance = nil
+local collisionLastDistance = nil ---@type number?
 local collisionHasLastNearClipCenter = false
 local collisionLastNearClipCenter = vec3()
 local collisionDirection = vec3()
@@ -196,7 +192,7 @@ local collisionNearClipCenter = vec3()
 local collisionRayStart = vec3()
 local collisionEdgeDirection = vec3()
 local collisionCorrectedPosition = vec3()
-local collisionRayDestinations = { vec3(), vec3(), vec3(), vec3() }
+local collisionRayDestinations = { vec3(), vec3(), vec3(), vec3() } ---@type table<integer, vec3>
 
 local function resetCollisionState()
   collisionUseRaycast = true
@@ -241,18 +237,18 @@ local function clampDistance(value)
   return math.clamp(value, CAMERA_DISTANCE_MIN, CAMERA_DISTANCE_MAX)
 end
 
----@param config table
+---@param config BeamNGOrbitCameraConfig
 local function applyRuntimeConfig(config)
   if config == nil then return end
 
-  local cameraDistance = tonumber(config.cameraDistance) or runtimeConfig.cameraDistance
-  local cameraFov = tonumber(config.cameraFov) or runtimeConfig.cameraFov
-  local cameraTargetHeightOffset = tonumber(config.cameraTargetHeightOffset) or runtimeConfig.cameraTargetHeightOffset
-  local cameraPitchDeg = tonumber(config.cameraPitch) or lastCameraPitchDeg
-  local cameraRelaxation = tonumber(config.cameraRelaxation) or runtimeConfig.cameraRelaxation
-  local dynamicFovAtSpeed = tonumber(config.dynamicFovAtSpeed) or runtimeConfig.dynamicFovAtSpeed
-  local dynamicPitchAtSpeedDeg = tonumber(config.dynamicPitchAtSpeed) or lastDynamicPitchAtSpeedDeg
-  local dynamicHeightAtSpeed = tonumber(config.dynamicHeightAtSpeed) or runtimeConfig.dynamicHeightAtSpeed
+  local cameraDistance = config.cameraDistance or runtimeConfig.cameraDistance
+  local cameraFov = config.cameraFov or runtimeConfig.cameraFov
+  local cameraTargetHeightOffset = config.cameraTargetHeightOffset or runtimeConfig.cameraTargetHeightOffset
+  local cameraPitchDeg = config.cameraPitch or lastCameraPitchDeg
+  local cameraRelaxation = config.cameraRelaxation or runtimeConfig.cameraRelaxation
+  local dynamicFovAtSpeed = config.dynamicFovAtSpeed or runtimeConfig.dynamicFovAtSpeed
+  local dynamicPitchAtSpeedDeg = config.dynamicPitchAtSpeed or lastDynamicPitchAtSpeedDeg
+  local dynamicHeightAtSpeed = config.dynamicHeightAtSpeed or runtimeConfig.dynamicHeightAtSpeed
   local collisionHandlingMethod = math.clamp(
     math.floor(
       tonumber(config.collisionHandlingMethod)
@@ -330,7 +326,6 @@ end
 ---@return number
 local function signedHeadingError(from, to)
   from:cross(to, tmpCrossA)
-  ---@diagnostic disable-next-line: redundant-parameter
   return math.atan2(tmpCrossA:dot(WORLD_UP), math.clamp(from:dot(to), -1, 1))
 end
 
@@ -384,7 +379,7 @@ local function updateGlanceForward(dt, input, carHeading, velocity, normalForwar
   local glanceBack = input.glanceBack == true
   local nextGlanceMode = glanceBack and (glanceLeft ~= glanceRight and (glanceLeft and 4 or 5) or 3)
     or glanceLeft ~= glanceRight and (glanceLeft and 1 or 2)
-    or 0
+    or 0 ---@type integer
 
   if nextGlanceMode ~= 0 then
     movementHeading:set(velocity.x, 0, velocity.z)
@@ -485,7 +480,7 @@ local function temporalSigmoidGetWithRateAccel(
   local absoluteDifference = math.abs(difference)
   local differenceSign = math.sign(difference)
 
-  local accelerationDelta
+  local accelerationDelta = 0.0
   local doubleAbsoluteDifference = absoluteDifference * 2
   if velocitySquared > doubleAbsoluteDifference * stopAcceleration
       and doubleAbsoluteDifference > 0 then
@@ -765,6 +760,8 @@ local function updateDynamicPitchState(speed, manualRotationActive, dt)
 end
 
 local function updateAabbReferences()
+  if car == nil then return end
+
   local center = car.aabbCenter
   local size = car.aabbSize
 
@@ -782,6 +779,8 @@ end
 ---@param baseFov number
 ---@return number
 local function calculateDynamicPitchLimit(targetPos, baseFov)
+  if car == nil then return 0 end
+
   local defaultPitchRad = runtimeConfig.cameraPitchRad
   local defaultDistance = runtimeConfig.cameraDistance
 
@@ -848,22 +847,25 @@ local function castCollisionRay(startPos, direction, rayLength)
   if directionLength <= 0.0001 then return rayLength end
   collisionRayDirection:set(collisionRayDirection / directionLength)
 
-  local hitDistance
-  if runtimeConfig.collisionHandlingMethod
-      == COLLISION_HANDLING_VISUALS then
+  local hitDistance ---@type number
+  
+  if runtimeConfig.collisionHandlingMethod == COLLISION_HANDLING_VISUALS then
+  
     hitDistance = render.createRay(
       startPos,
       collisionRayDirection,
       rayLength
     ):track()
-  elseif runtimeConfig.collisionHandlingMethod
-      == COLLISION_HANDLING_PHYSICS_SHAPES then
-    local outPosition, outNormal
+
+  elseif runtimeConfig.collisionHandlingMethod == COLLISION_HANDLING_PHYSICS_SHAPES then
+
+    local outPosition, outNormal ---@type vec3, vec3
     hitDistance = render.createRay(
       startPos,
       collisionRayDirection,
       rayLength
     ):physics(outPosition, outNormal)
+
   else
     return rayLength
   end
@@ -890,8 +892,8 @@ local function isObstacleInFrontOfCamera()
   end
 
   for i = 1, 4 do
-    local cornerPos = collisionRayDestinations[i]
-    local rayDest = collisionRayDestinations[i % 4 + 1]
+    local cornerPos = collisionRayDestinations[i] ---@cast cornerPos -?
+    local rayDest = collisionRayDestinations[i % 4 + 1] ---@cast rayDest -?
     collisionEdgeDirection:set(rayDest - cornerPos)
     local rayDistance = #collisionEdgeDirection
     if rayDistance > 0.0001
@@ -910,7 +912,7 @@ end
 local function applyCameraCollision(targetPos, desiredCameraPosition, desiredCameraDirection, dt)
 
   collisionDirection:set(desiredCameraPosition - targetPos)
-  local directionLength = #collisionDirection
+  local directionLength = #collisionDirection ---@type number
   if directionLength <= 0.0001 then
     collisionLastDistance = nil
     collisionHasLastNearClipCenter = false
@@ -968,11 +970,11 @@ local function applyCameraCollision(targetPos, desiredCameraPosition, desiredCam
     collisionUseRaycast = true
   end
 
-  local closestHit = directionLength
+  local closestHit = directionLength ---@type number
   local hitRegistered = false
   if collisionUseRaycast then
     for i = 1, 4 do
-      local cornerPos = collisionRayDestinations[i]
+      local cornerPos = collisionRayDestinations[i] or VEC3_ZERO
       collisionRayStart:set(cornerPos - collisionDirection)
       local hitDistance = castCollisionRay(
         collisionRayStart,
@@ -1017,7 +1019,7 @@ end
 ---@param targetCar ac.StateCar
 ---@param config BeamNGOrbitCameraConfig
 ---@param input BeamNGOrbitCameraInput
----@return BeamNGOrbitCameraPose|nil
+---@return BeamNGOrbitCameraPose?
 function M.update(dt, targetCar, config, input)
   if targetCar == nil then return nil end
 
@@ -1061,10 +1063,10 @@ function M.update(dt, targetCar, config, input)
   updateMovementHeading(targetPos, carHeading, dt)
 
   input = input or {}
-  local manualYawStepRad = tonumber(input.yawStepRad) or 0
-  local manualPitchStepRad = tonumber(input.pitchStepRad) or 0
-  local zoomStep = tonumber(input.zoomStep) or 0
-  local zoomDistanceStep = tonumber(input.zoomDistanceStep) or 0
+  local manualYawStepRad = tonumber(input.yawStepRad) or 0.0
+  local manualPitchStepRad = tonumber(input.pitchStepRad) or 0.0
+  local zoomStep = tonumber(input.zoomStep) or 0.0
+  local zoomDistanceStep = tonumber(input.zoomDistanceStep) or 0.0
   local recenterPressed = input.recenterPressed == true
   local recenterKeepValuesPressed = input.recenterKeepValuesPressed == true
 
@@ -1162,7 +1164,7 @@ function M.update(dt, targetCar, config, input)
     baseDirection:set(orbitForward)
   end
 
-  local dynamicPitchAngleRad = 0
+  local dynamicPitchAngleRad = 0.0
   if dynamicPitchBlend > 0.0001 and runtimeConfig.dynamicPitchAtSpeedRad > 0 then
     local pitchLimitRad = calculateDynamicPitchLimit(targetPos, runtimeConfig.cameraFov)
     dynamicPitchAngleRad = -math.min(runtimeConfig.dynamicPitchAtSpeedRad, pitchLimitRad) * dynamicPitchBlend
@@ -1209,4 +1211,3 @@ function M.reset()
 end
 
 return M
-

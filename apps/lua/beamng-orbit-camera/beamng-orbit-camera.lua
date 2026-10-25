@@ -56,7 +56,6 @@ local function settingsUpdate()
 end
 
 ---@param dt number
----@diagnostic disable-next-line: duplicate-set-field
 function script.update(dt)
 
   cameraIndex = cameraBridge.cameraIndex
@@ -146,8 +145,8 @@ local function drawStatusBar()
   end
 end
 
----@param dt number
-function script.windowMain(dt)
+---@param _dt number
+function script.windowMain(_dt)
   ui.textColored(VERSION_TEXT, rgbm.colors.gray)
   ui.tabBar('beamngOrbitCameraTabs', drawTabs)
   drawStatusBar()

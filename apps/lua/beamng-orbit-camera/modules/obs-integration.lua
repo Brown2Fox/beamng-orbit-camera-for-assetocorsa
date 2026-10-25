@@ -1,15 +1,15 @@
-
+---@class ObsIntegrationModule
 local M = {}
 
 local CAMERA_CORE_MODULE = '../../../extension/lua/chaser-camera/beamng-orbit/modules/orbit-camera'
 
-M.enabled = false
-local obs = nil
----@type BeamNGOrbitCameraModule|nil
-local OrbitCamera = nil
-local obsSource = nil
-local obsShot = nil
-local obsSceneRoot = nil
+M.enabled = false ---@type boolean
+
+local obs = nil ---@type unknown?
+local obsSource = nil ---@type unknown?
+local obsShot = nil ---@type unknown?
+local obsSceneRoot = nil ---@type unknown?
+local OrbitCamera = nil ---@type BeamNGOrbitCameraModule?
 
 local latestPosition = vec3()
 local latestDirection = vec3(0, 0, 1)
@@ -67,6 +67,8 @@ local function setEnabled(value)
   M.enabled = value
   poseReady = false
 
+  ---@diagnostic disable
+
   if M.enabled then
     obs = obs or require('shared/utils/obs')
     OrbitCamera = OrbitCamera or require(CAMERA_CORE_MODULE)
@@ -81,6 +83,8 @@ local function setEnabled(value)
     )
     return
   end
+
+  ---@diagnostic enable
 
   if obsSource ~= nil then
     obsSource:dispose()
@@ -98,7 +102,7 @@ function M.update(dt, cameraConfig, input)
   local targetCar = ac.getCar(0)
   if targetCar == nil then return end
 
-  ---@cast OrbitCamera BeamNGOrbitCameraModule
+  if OrbitCamera == nil then return end
   local pose = OrbitCamera.update(dt, targetCar, cameraConfig, input)
   if pose == nil then return end
 

@@ -1,10 +1,11 @@
 
----@class BeamNGOrbitCameraSettings
+---@class BeamNGOrbitCameraSettingsModule
 local M = {}
 
 local cspMajor, cspMinor = (ac.getPatchVersion() or ''):match('^(%d+)%.(%d+)')
 local supportsCollisions = (tonumber(cspMajor) or 0) > 0 or (tonumber(cspMinor) or 0) >= 3
 
+---@type table<integer, string>
 local GAMEPAD_CONTROL_SCHEMES = {
   [0] = 'Disabled',
   [1] = 'Right Stick — Orbit',
@@ -13,26 +14,31 @@ local GAMEPAD_CONTROL_SCHEMES = {
   [4] = 'Right Stick — Orbit; Zoom modifier + Right Stick — Zoom + Yaw',
 }
 
+---@type table<integer, string>
 local MOUSE_CONTROL_SCHEMES = {
   [0] = 'Disabled',
   [1] = 'RMB (Hold) + Move — Orbit; RMB (Hold) + Wheel — Zoom',
 }
 
+---@type table<integer, string>
 local COLLISION_HANDLING_SCHEMES = {
   [0] = 'Disabled',
   [1] = 'Collision with physics shapes',
   [2] = 'Collision with visuals',
 }
 
+---@alias ParamKind 'slider'|'scheme'|'cbox'
+
 ---@class ParamDef
----@field kind 'slider'|'scheme'|'cbox'
+---@field kind ParamKind
 ---@field displayName string
 ---@field defaultValue number
 ---@field minValue number?
 ---@field maxValue number?
 ---@field format string?
----@field options table?
+---@field options table<integer, string>?
 
+---@type table<string, ParamDef>
 local cameraParams = {
   cameraDistance = { displayName = 'Distance', defaultValue = 5.0, minValue = 3.0, maxValue = 30.0, format = '%.1f m', kind = 'slider' },
   cameraFov = { displayName = 'Field of view', defaultValue = 65.0, minValue = 45.0, maxValue = 85.0, format = '%.0f°', kind = 'slider' },
@@ -44,28 +50,33 @@ local cameraParams = {
   dynamicHeightAtSpeed = { displayName = 'Height', defaultValue = 0.4, minValue = -1.0, maxValue = 1.0, format = '%.2f m', kind = 'slider' },
 }
 
+---@type table<string, ParamDef>
 local controlParams = {
   disableGlance = { displayName = 'Disable glance left/right/back', defaultValue = 0, kind = 'cbox' },
   gamepadControlScheme = { displayName = 'Control scheme', defaultValue = 2, options = GAMEPAD_CONTROL_SCHEMES, kind = 'scheme' },
   mouseControlScheme = { displayName = 'Control scheme', defaultValue = 1, options = MOUSE_CONTROL_SCHEMES, kind = 'scheme' },
   orbitStickDeadzone = { displayName = 'Orbit deadzone', defaultValue = 0.03, minValue = 0.0, maxValue = 0.95, format = '%.2f', kind = 'slider' },
-  orbitStickExponent = { displayName = 'Orbit exponent', defaultValue = 1.0, minValue = 0.2, maxValue = 5.0, format = '%.2f', kind = 'slider' },
+  orbitSens = { displayName = 'Orbit sensitivity', defaultValue = 1.0, minValue = 0.2, maxValue = 2.0, format = '%.2f', kind = 'slider' },
   zoomStickDeadzone = { displayName = 'Zoom deadzone', defaultValue = 0.03, minValue = 0.0, maxValue = 0.95, format = '%.2f', kind = 'slider' },
-  zoomStickExponent = { displayName = 'Zoom exponent', defaultValue = 1.0, minValue = 0.2, maxValue = 5.0, format = '%.2f', kind = 'slider' },
+  zoomSens = { displayName = 'Zoom sensitivity', defaultValue = 1.0, minValue = 0.2, maxValue = 2.0, format = '%.2f', kind = 'slider' },
 }
 
+---@type table<string, ParamDef>
 local collisionParams = {
   collisionHandlingMethod = { displayName = 'Handling method', defaultValue = 1, options = COLLISION_HANDLING_SCHEMES, kind = 'scheme' },
   disableCollisionWhenRecentered = { displayName = 'Disable collision for recentered camera', defaultValue = 0, kind = 'cbox' },
 }
 
+---@param key string
 ---@return ParamDef
 local function getParamDef(key)
   return cameraParams[key] or controlParams[key] or collisionParams[key]
 end
 
+---@type table<string, ac.StoredValue>
 local paramStorage = {}
 
+---@param params table<string, ParamDef>
 local function registerParams(params)
   for key, param in pairs(params) do
     paramStorage[key] = ac.storage(key, param.defaultValue)
@@ -75,7 +86,7 @@ end
 ---@param key string
 ---@return number
 local function getParamVal(key)
-  return paramStorage[key]:get()
+  return tonumber(paramStorage[key]:get()) or 0.0
 end
 
 ---@param key string
@@ -234,7 +245,7 @@ function M.update()
   local dynamicFovAtSpeed = M.get('dynamicFovAtSpeed')
   local dynamicPitchAtSpeed = M.get('dynamicPitchAtSpeed')
   local dynamicHeightAtSpeed = M.get('dynamicHeightAtSpeed')
-  local collisionHandlingMethod = M.get('collisionHandlingMethod')
+  local collisionHandlingMethod = M.get('collisionHandlingMethod') ---@cast collisionHandlingMethod integer
   local disableCollisionWhenRecentered = M.get('disableCollisionWhenRecentered') == 1
 
   local changed = not paramsPublished
@@ -299,9 +310,10 @@ end
 function M.drawSlider(key, highlightIfModified)
   local paramDef = getParamDef(key)
   if paramDef == nil or paramDef.kind ~= 'slider' then return end
+  if paramDef.format == nil then return end
 
   local valueObj = paramStorage[key]
-  local value = clampParamValIfNeeded(valueObj:get(), paramDef)
+  local value = clampParamValIfNeeded(tonumber(valueObj:get()), paramDef)
   local needHighlight = highlightIfModified and value ~= paramDef.defaultValue
 
   drawParamLabel(key, highlightIfModified)
@@ -348,9 +360,10 @@ end
 function M.drawScheme(key, highlightIfModified)
   local paramDef = getParamDef(key)
   if paramDef == nil or paramDef.kind ~= 'scheme' then return end
+  if paramDef.options == nil then return end
 
   local valueObj = paramStorage[key]
-  local value = clampParamValIfNeeded(valueObj:get(), paramDef)
+  local value = clampParamValIfNeeded(tonumber(valueObj:get()), paramDef)
   local needHighlight = highlightIfModified and value ~= paramDef.defaultValue
 
   drawParamLabel(key, highlightIfModified)
@@ -390,7 +403,7 @@ function M.drawCheckbox(key, highlightIfModified)
   if paramDef == nil or paramDef.kind ~= 'cbox' then return end
 
   local valueObj = paramStorage[key]
-  local value = clampParamValIfNeeded(valueObj:get(), paramDef)
+  local value = clampParamValIfNeeded(tonumber(valueObj:get()), paramDef)
   local checked = value ~= 0
   local needHighlight = highlightIfModified and value ~= paramDef.defaultValue
 
