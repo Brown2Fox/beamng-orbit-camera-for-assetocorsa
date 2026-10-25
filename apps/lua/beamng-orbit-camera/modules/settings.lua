@@ -56,9 +56,9 @@ local controlParams = {
   gamepadControlScheme = { displayName = 'Control scheme', defaultValue = 2, options = GAMEPAD_CONTROL_SCHEMES, kind = 'scheme' },
   mouseControlScheme = { displayName = 'Control scheme', defaultValue = 1, options = MOUSE_CONTROL_SCHEMES, kind = 'scheme' },
   orbitStickDeadzone = { displayName = 'Orbit deadzone', defaultValue = 0.03, minValue = 0.0, maxValue = 0.95, format = '%.2f', kind = 'slider' },
-  orbitSens = { displayName = 'Orbit sensitivity', defaultValue = 1.0, minValue = 0.2, maxValue = 2.0, format = '%.2f', kind = 'slider' },
+  orbitSens = { displayName = 'Orbit sensitivity', defaultValue = 1.0, minValue = 0.2, maxValue = 5.0, format = '%.2f', kind = 'slider' },
   zoomStickDeadzone = { displayName = 'Zoom deadzone', defaultValue = 0.03, minValue = 0.0, maxValue = 0.95, format = '%.2f', kind = 'slider' },
-  zoomSens = { displayName = 'Zoom sensitivity', defaultValue = 1.0, minValue = 0.2, maxValue = 2.0, format = '%.2f', kind = 'slider' },
+  zoomSens = { displayName = 'Zoom sensitivity', defaultValue = 1.0, minValue = 0.2, maxValue = 5.0, format = '%.2f', kind = 'slider' },
 }
 
 ---@type table<string, ParamDef>
