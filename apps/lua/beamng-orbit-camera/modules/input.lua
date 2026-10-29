@@ -102,7 +102,7 @@ end
 reloadGamepadIndex()
 ac.onControlSettingsChanged(reloadGamepadIndex)
 
----@param stickIndex integer 0 — Left, 1 — Right
+---@param stickIndex integer # 0 — Left, 1 — Right
 ---@return number x, number y
 local function readGamepadStick(stickIndex)
   if type(ac.getGamepadAxisValue) ~= 'function' then return 0, 0 end
@@ -120,7 +120,7 @@ local function readGamepadStick(stickIndex)
   return ac.getGamepadAxisValue(gamepadIndex, xAxis) or 0, ac.getGamepadAxisValue(gamepadIndex, yAxis) or 0
 end
 
----@param stickIndex integer 0 — Left, 1 — Right
+---@param stickIndex integer # 0 — Left, 1 — Right
 ---@return number
 local function readZoomAxis(stickIndex)
   if Settings == nil then return 0 end
