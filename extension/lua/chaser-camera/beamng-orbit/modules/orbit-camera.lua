@@ -43,6 +43,19 @@ local supportsCollisions = (tonumber(cspMajor) or 0) > 0 or (tonumber(cspMinor) 
 local car = nil ---@type ac.StateCar?
 local currentCarIndex = -1
 
+---@class (exact) BeamNGOrbitCameraRuntimeConfig
+---@field cameraDistance number
+---@field cameraFov number
+---@field cameraTargetHeightOffset number
+---@field cameraPitchRad number
+---@field cameraRelaxation number
+---@field dynamicFovAtSpeed number
+---@field dynamicPitchAtSpeedRad number
+---@field dynamicHeightAtSpeed number
+---@field collisionHandlingMethod number
+---@field disableCollisionWhenRecentered boolean
+
+---@type BeamNGOrbitCameraRuntimeConfig
 local runtimeConfig = {
   cameraDistance = 5.0,
   cameraFov = 65.0,

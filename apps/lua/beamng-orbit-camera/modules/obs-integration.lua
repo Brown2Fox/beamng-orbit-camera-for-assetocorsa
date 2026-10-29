@@ -1,14 +1,15 @@
 ---@class ObsIntegrationModule
+---@field enabled boolean
 local M = {}
 
 local CAMERA_CORE_MODULE = '../../../extension/lua/chaser-camera/beamng-orbit/modules/orbit-camera'
 
 M.enabled = false ---@type boolean
 
-local obs = nil ---@type unknown?
-local obsSource = nil ---@type unknown?
-local obsShot = nil ---@type unknown?
-local obsSceneRoot = nil ---@type unknown?
+local obs = nil ---@type CSPObsModule?
+local obsSource = nil ---@type CSPObsSource?
+local obsShot = nil ---@type ac.GeometryShot?
+local obsSceneRoot = nil ---@type ac.SceneReference?
 local OrbitCamera = nil ---@type BeamNGOrbitCameraModule?
 
 local latestPosition = vec3()
@@ -17,6 +18,12 @@ local latestUp = vec3(0, 1, 0)
 local latestFov = 65.0
 local poseReady = false
 
+---@class (exact) ObsShaderTextures
+---@field txHDR? ac.GeometryShot
+
+---@alias ObsShaderParams { textures: ObsShaderTextures, shader: string }
+
+---@type ObsShaderParams
 local shaderParams = {
   textures = { txHDR = nil },
   shader = [[float4 main(PS_IN pin){
@@ -32,6 +39,7 @@ local function disposeShot()
   shaderParams.textures.txHDR = nil
 end
 
+---@param size vec2
 local function resizeShot(size)
   disposeShot()
 
@@ -54,6 +62,7 @@ local function resizeShot(size)
   shaderParams.textures.txHDR = obsShot
 end
 
+---@param canvas ui.ExtraCanvas
 local function drawSource(canvas)
   if not poseReady or obsShot == nil then return end
 
@@ -61,13 +70,12 @@ local function drawSource(canvas)
   canvas:updateWithShader(shaderParams)
 end
 
+---@param value boolean
 local function setEnabled(value)
   if value == M.enabled then return end
 
   M.enabled = value
   poseReady = false
-
-  ---@diagnostic disable
 
   if M.enabled then
     obs = obs or require('shared/utils/obs')
@@ -83,8 +91,6 @@ local function setEnabled(value)
     )
     return
   end
-
-  ---@diagnostic enable
 
   if obsSource ~= nil then
     obsSource:dispose()

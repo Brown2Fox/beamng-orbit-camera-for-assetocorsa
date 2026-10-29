@@ -11,6 +11,16 @@ local cameraIndex = -1;
 local cameraActive = false
 local playerWasInPit = false
 
+---@class CameraBridgeLayout
+---@field cameraIndex integer
+---@field currentPitch number
+---@field currentDistance number
+---@field currentFov number
+---@field currentHeight number
+---@field orbitPitch number
+---@field orbitDistance number
+
+---@type CameraBridgeLayout
 local cameraBridge = ac.connect({
   ac.StructItem.key('beamng_orbit_camera.camera_bridge'),
   cameraIndex = ac.StructItem.uint32(),
@@ -22,6 +32,7 @@ local cameraBridge = ac.connect({
   orbitDistance = ac.StructItem.double(),
 }, false, ac.SharedNamespace.Shared)
 
+---@param keepValues boolean
 local function requestRecenter(keepValues)
     if keepValues then
       Input.cameraInput.recenterKeepValuesPressed = true
@@ -97,7 +108,9 @@ local tabContentSize = vec2()
 local STATUS_BAR_GAP = 8
 local SCROLLBAR_CONTENT_GAP = 8
 
-local function drawTab(label, content)
+---@param label string
+---@param drawContentFn fun()
+local function drawTab(label, drawContentFn)
   ui.tabItem(label, function()
     tabContentSize:set(ui.availableSpace())
     tabContentSize.y = tabContentSize.y - ui.measureText('C').y - STATUS_BAR_GAP
@@ -105,7 +118,7 @@ local function drawTab(label, content)
     ui.childWindow('content', tabContentSize, function()
       local scrollbarGap = ui.getScrollMaxY() > 0 and SCROLLBAR_CONTENT_GAP or 0
       ui.beginGroup(math.max(1, ui.availableSpaceX() - scrollbarGap))
-      content()
+      drawContentFn()
       ui.endGroup()
     end)
   end)

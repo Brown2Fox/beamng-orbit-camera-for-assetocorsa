@@ -1,6 +1,7 @@
 
 local OrbitCamera = require('modules/orbit-camera')
 
+---@type ParamsBridgeLayout
 local paramsBridge = ac.connect({
   ac.StructItem.key('beamng_orbit_camera.params_bridge'),
   seqNum = ac.StructItem.uint32(),
@@ -17,6 +18,7 @@ local paramsBridge = ac.connect({
   disableCollisionWhenRecentered = ac.StructItem.boolean(),
 }, false, ac.SharedNamespace.Shared)
 
+---@type ControlsBridgeLayout
 local controlsBridge = ac.connect({
   ac.StructItem.key('beamng_orbit_camera.controls_bridge'),
   seqNum = ac.StructItem.uint32(),
@@ -34,6 +36,7 @@ local controlsBridge = ac.connect({
   glanceBack = ac.StructItem.boolean(),
 }, false, ac.SharedNamespace.Shared)
 
+---@type CameraBridgeLayout
 local cameraBridge = ac.connect({
   ac.StructItem.key('beamng_orbit_camera.camera_bridge'),
   cameraIndex = ac.StructItem.uint32(),

@@ -137,6 +137,21 @@ function M.get(key)
   return clampParamValIfNeeded(paramVal, paramDef)
 end
 
+---@class ParamsBridgeLayout
+---@field seqNum integer
+---@field ready boolean
+---@field cameraDistance number
+---@field cameraFov number
+---@field cameraTargetHeightOffset number
+---@field cameraPitch number
+---@field cameraRelaxation number
+---@field dynamicFovAtSpeed number
+---@field dynamicPitchAtSpeed number
+---@field dynamicHeightAtSpeed number
+---@field collisionHandlingMethod integer
+---@field disableCollisionWhenRecentered boolean
+
+---@type ParamsBridgeLayout
 local paramsBridge = ac.connect({
   ac.StructItem.key('beamng_orbit_camera.params_bridge'),
   seqNum = ac.StructItem.uint32(),
@@ -173,6 +188,17 @@ local paramsPublished = false
 local recenterRequested = false
 local recenterKeepValuesRequested = false
 local liveValuePosition = vec2()
+
+---@class LiveCameraValues
+---@field active boolean
+---@field cameraDistance number
+---@field cameraFov number
+---@field cameraPitch number
+---@field cameraTargetHeightOffset number
+---@field orbitDistance number
+---@field orbitPitch number
+
+---@type LiveCameraValues
 local liveCameraValues = {
   active = false,
   cameraDistance = 0.0,
@@ -183,6 +209,7 @@ local liveCameraValues = {
   orbitPitch = 0.0,
 }
 
+---@type table<string, string>
 local LIVE_CAMERA_VALUE_KEYS = {
   cameraDistance = 'cameraDistance',
   cameraFov = 'cameraFov',
@@ -312,7 +339,7 @@ function M.drawSlider(key, highlightIfModified)
   if paramDef == nil or paramDef.kind ~= 'slider' then return end
   if paramDef.format == nil then return end
 
-  local valueObj = paramStorage[key]
+  local valueObj = paramStorage[key] ---@type ac.StoredValue
   local value = clampParamValIfNeeded(tonumber(valueObj:get()), paramDef)
   local needHighlight = highlightIfModified and value ~= paramDef.defaultValue
 
@@ -362,9 +389,10 @@ function M.drawScheme(key, highlightIfModified)
   if paramDef == nil or paramDef.kind ~= 'scheme' then return end
   if paramDef.options == nil then return end
 
-  local valueObj = paramStorage[key]
-  local value = clampParamValIfNeeded(tonumber(valueObj:get()), paramDef)
-  local needHighlight = highlightIfModified and value ~= paramDef.defaultValue
+  local valueObj = paramStorage[key] ---@type ac.StoredValue
+  local optInd = clampParamValIfNeeded(tonumber(valueObj:get()), paramDef) ---@cast optInd integer
+  local defaultInd = paramDef.defaultValue ---@cast defaultInd integer
+  local needHighlight = highlightIfModified and optInd ~= defaultInd
 
   drawParamLabel(key, highlightIfModified)
   ui.sameLine(230)
@@ -374,7 +402,7 @@ function M.drawScheme(key, highlightIfModified)
     ui.pushStyleColor(ui.StyleColor.Text, MODIFIED_PARAM_COLOR)
   end
 
-  local comboOpen = ui.beginCombo('##' .. key, paramDef.options[value])
+  local comboOpen = ui.beginCombo('##' .. key, paramDef.options[optInd] --[[@as string]])
 
   if needHighlight then
     ui.popStyleColor()
@@ -402,7 +430,7 @@ function M.drawCheckbox(key, highlightIfModified)
   local paramDef = getParamDef(key)
   if paramDef == nil or paramDef.kind ~= 'cbox' then return end
 
-  local valueObj = paramStorage[key]
+  local valueObj = paramStorage[key] ---@type ac.StoredValue
   local value = clampParamValIfNeeded(tonumber(valueObj:get()), paramDef)
   local checked = value ~= 0
   local needHighlight = highlightIfModified and value ~= paramDef.defaultValue

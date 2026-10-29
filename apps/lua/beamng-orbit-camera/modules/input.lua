@@ -38,6 +38,19 @@ local gamepadControlFlags = commonControlFlags
   + ui.ControlButtonControlFlags.SingleEntry
   + ui.ControlButtonControlFlags.Gamepad
 
+---@class ControlsBridgeLayout
+---@field seqNum integer
+---@field yawTotalRad number
+---@field pitchTotalRad number
+---@field zoomTotal number
+---@field zoomDistanceTotal number
+---@field recenterSeqNum integer
+---@field recenterKeepValuesSeqNum integer
+---@field glanceLeft boolean
+---@field glanceRight boolean
+---@field glanceBack boolean
+
+---@type ControlsBridgeLayout
 local controlsBridge = ac.connect({
   ac.StructItem.key('beamng_orbit_camera.controls_bridge'),
   seqNum = ac.StructItem.uint32(),
@@ -279,6 +292,7 @@ local function drawBinding(label, description, button)
   ui.text(label)
   ui.sameLine(230)
   fullWidthSize:set(ui.availableSpaceX(), 0)
+  ---@cast commonControlFlags ui.ControlButtonControlFlags
   button:control(fullWidthSize, commonControlFlags)
   if ui.itemHovered() then ui.setTooltip(description) end
 end
@@ -287,6 +301,7 @@ local function drawZoomModifierBinding()
   ui.text('Zoom modifier')
   ui.sameLine(230)
   fullWidthSize:set(ui.availableSpaceX(), 0)
+  ---@cast gamepadControlFlags ui.ControlButtonControlFlags
   zoomModifierButton:control(fullWidthSize, gamepadControlFlags)
   if ui.itemHovered() then
     ui.setTooltip('Hold this button to activate zoom in control schemes that include it.')
@@ -297,8 +312,8 @@ function M.drawControlsTab()
   if Settings == nil then return end
 
   ui.text('Common')
-  Settings.drawSlider('orbitSens', true)
-  Settings.drawSlider('zoomSens', true)
+  Settings.drawSlider('orbitSens', false)
+  Settings.drawSlider('zoomSens', false)
 
   ui.separator()
 
@@ -331,10 +346,10 @@ function M.drawControlsTab()
 
   if controlScheme ~= 0 then
     ui.treeNode('Advanced', function()
-      Settings.drawSlider('orbitStickDeadzone', true)
+      Settings.drawSlider('orbitStickDeadzone', false)
 
       if controlScheme >= 2 then
-        Settings.drawSlider('zoomStickDeadzone', true)
+        Settings.drawSlider('zoomStickDeadzone', false)
       end
     end)
   end
