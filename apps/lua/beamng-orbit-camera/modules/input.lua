@@ -102,17 +102,6 @@ end
 reloadGamepadIndex()
 ac.onControlSettingsChanged(reloadGamepadIndex)
 
----@param value number
----@param deadzone number
----@return number
-local function shapeGamepadAxis(value, deadzone)
-  local magnitude = math.abs(value or 0)
-  if magnitude <= deadzone then return 0 end
-
-  -- local normalized = math.min(1, (magnitude - deadzone) / (1 - deadzone))
-  return value
-end
-
 ---@param stickIndex integer 0 — Left, 1 — Right
 ---@return number x, number y
 local function readGamepadStick(stickIndex)
@@ -139,8 +128,9 @@ local function readZoomAxis(stickIndex)
   local deadzone = Settings.get('zoomStickDeadzone')
 
   local _, yRaw = readGamepadStick(stickIndex)
+  if math.abs(yRaw) <= deadzone then return 0 end
 
-  local y = -shapeGamepadAxis(yRaw, deadzone)
+  local y = -yRaw
   return y
 end
 
@@ -153,9 +143,10 @@ local function readGamepadOrbit()
   local deadzone = Settings.get('orbitStickDeadzone')
 
   local xRaw, yRaw = readGamepadStick(1)
+  if xRaw*xRaw + yRaw*yRaw <= deadzone*deadzone then return 0, 0 end
 
-  local x = -shapeGamepadAxis(xRaw, deadzone)
-  local y = -shapeGamepadAxis(yRaw, deadzone)
+  local x = -xRaw
+  local y = -yRaw
   return x, y
 end
 
