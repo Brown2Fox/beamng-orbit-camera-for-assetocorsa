@@ -2,11 +2,10 @@
 local Settings = require('modules/settings')
 local Input = require('modules/input')
 local ObsIntegration = require('modules/obs-integration')
-local Extras = require('modules/extras')
 
 Input.setSettings(Settings)
 
-local VERSION_TEXT = 'Ver: 1.3.0'
+local VERSION_TEXT = 'Ver: 2.0.0'
 local cameraIndex = -1;
 local cameraActive = false
 local playerWasInPit = false
@@ -19,10 +18,11 @@ local playerWasInPit = false
 ---@field currentHeight number
 ---@field orbitPitch number
 ---@field orbitDistance number
+---@field orbitFov number
 
 ---@type CameraBridgeLayout
 local cameraBridge = ac.connect({
-  ac.StructItem.key('beamng_orbit_camera.camera_bridge'),
+  ac.StructItem.key('beamng_orbit_camera.camera_bridge_v4'),
   cameraIndex = ac.StructItem.uint32(),
   currentPitch = ac.StructItem.double(),
   currentDistance = ac.StructItem.double(),
@@ -30,6 +30,7 @@ local cameraBridge = ac.connect({
   currentHeight = ac.StructItem.double(),
   orbitPitch = ac.StructItem.double(),
   orbitDistance = ac.StructItem.double(),
+  orbitFov = ac.StructItem.double(),
 }, false, ac.SharedNamespace.Shared)
 
 ---@param keepValues boolean
@@ -86,7 +87,8 @@ function script.update(dt)
     cameraBridge.currentPitch,
     cameraBridge.currentHeight,
     cameraBridge.orbitDistance,
-    cameraBridge.orbitPitch
+    cameraBridge.orbitPitch,
+    cameraBridge.orbitFov
   )
 
   if shouldUpdate then
@@ -104,64 +106,32 @@ function script.update(dt)
   end
 end
 
-local tabContentSize = vec2()
-local STATUS_BAR_GAP = 8
-local SCROLLBAR_CONTENT_GAP = 8
+local function drawPage()
+  Settings.drawCameraTab()
 
----@param label string
----@param drawContentFn fun()
-local function drawTab(label, drawContentFn)
-  ui.tabItem(label, function()
-    tabContentSize:set(ui.availableSpace())
-    tabContentSize.y = tabContentSize.y - ui.measureText('C').y - STATUS_BAR_GAP
-    if tabContentSize.y <= 0 then return end
-    ui.childWindow('content', tabContentSize, function()
-      local scrollbarGap = ui.getScrollMaxY() > 0 and SCROLLBAR_CONTENT_GAP or 0
-      ui.beginGroup(math.max(1, ui.availableSpaceX() - scrollbarGap))
-      drawContentFn()
-      ui.endGroup()
-    end)
-  end)
-end
-
-local function drawTabs()
-  drawTab('Camera', Settings.drawCameraTab)
-  drawTab('Controls', Input.drawControlsTab)
-  drawTab('Extras', Extras.drawExtrasTab)
+  ui.newLine()
+  if Settings.collisionsSupported() then
+    ui.treeNode('Obstacles: ' .. Settings.collisionSummary() .. '###obstacles', Settings.drawCollisionSettings)
+  end
+  ui.treeNode('Controls: ' .. Input.controlsSummary() .. '###controls', Input.drawControlsTab)
+  ui.treeNode('Streaming: ' .. (ObsIntegration.enabled and 'OBS on' or 'off') .. '###streaming', ObsIntegration.drawObsIntegrationTab)
 end
 
 local function drawStatusBar()
-  local windowSize = ui.windowSize()
-  local textDim = ui.measureText('C')
-
-  ui.setCursorY(windowSize.y - textDim.y - 8)
+  ui.newLine()
   if cameraActive then
-    ui.pushStyleColor(ui.StyleColor.Text, rgbm.colors.gray)
-    ui.text('Cam:')
-    ui.popStyleColor()
-    ui.sameLine()
-    ui.pushStyleColor(ui.StyleColor.Text, rgbm.colors.lime)
-    ui.text('active')
-    ui.popStyleColor()
+    ui.textColored('Cam: active', rgbm.colors.lime)
   end
   if ObsIntegration.enabled then
-    if cameraActive then
-      ui.sameLine()
-    end
-    ui.pushStyleColor(ui.StyleColor.Text, rgbm.colors.gray)
-    ui.text('Obs:')
-    ui.popStyleColor()
-    ui.sameLine()
-    ui.pushStyleColor(ui.StyleColor.Text, rgbm.colors.lime)
-    ui.text('active')
-    ui.popStyleColor()
+    if cameraActive then ui.sameLine() end
+    ui.textColored('Obs: active', rgbm.colors.lime)
   end
 end
 
 ---@param _dt number
 function script.windowMain(_dt)
   ui.textColored(VERSION_TEXT, rgbm.colors.gray)
-  ui.tabBar('beamngOrbitCameraTabs', drawTabs)
+  drawPage()
   drawStatusBar()
 end
 

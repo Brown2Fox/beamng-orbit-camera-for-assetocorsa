@@ -120,15 +120,12 @@ function M.update(dt, cameraConfig, input)
 end
 
 function M.drawObsIntegrationTab()
-  ui.text('OBS Integration')
-  ui.separator()
-
-  if ui.checkbox('Enable OBS integration', M.enabled) then
+  if ui.checkbox('Send camera to OBS', M.enabled) then
     setEnabled(not M.enabled)
   end
 
   if ui.itemHovered() then
-    ui.setTooltip('If OBS Integration is enabled while this camera is active as the chase camera, its camera logic will run twice per frame.')
+    ui.setTooltip('Runs the camera logic twice per frame while this camera is also the chase camera.')
   end
 end
 

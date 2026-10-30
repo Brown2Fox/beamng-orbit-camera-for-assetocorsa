@@ -12,6 +12,15 @@ local ORBIT_YAW_SPEED_RAD = math.rad(100)
 local ORBIT_PITCH_SPEED_RAD = math.rad(50)
 local MOUSE_ORBIT_SENSITIVITY_RAD = math.rad(0.12)
 local MOUSE_ZOOM_WHEEL_STEP = 0.75
+local MOUSE_FOV_WHEEL_STEP = 0.08
+local MOUSE_DOLLY_WHEEL_STEP = 0.1
+local WHEEL_ACTION_FOV = 1
+local WHEEL_ACTION_DOLLY = 2
+local WHEEL_MODIFIER_KEYS = {
+  [1] = ui.KeyIndex.Control,
+  [2] = ui.KeyIndex.Menu,
+  [3] = ui.KeyIndex.Shift,
+}
 local UINT32_WRAP = 4294967296
 
 local orbitLeftButton = ac.ControlButton('beamng_orbit_camera.orbit_left', { keyboard = { key = ac.KeyIndex.NumPad4 }, hold = false })
@@ -44,6 +53,8 @@ local gamepadControlFlags = commonControlFlags
 ---@field pitchTotalRad number
 ---@field zoomTotal number
 ---@field zoomDistanceTotal number
+---@field zoomFovTotal number
+---@field zoomDollyTotal number
 ---@field recenterSeqNum integer
 ---@field recenterKeepValuesSeqNum integer
 ---@field glanceLeft boolean
@@ -52,13 +63,15 @@ local gamepadControlFlags = commonControlFlags
 
 ---@type ControlsBridgeLayout
 local controlsBridge = ac.connect({
-  ac.StructItem.key('beamng_orbit_camera.controls_bridge'),
+  ac.StructItem.key('beamng_orbit_camera.controls_bridge_v2'),
   seqNum = ac.StructItem.uint32(),
 
   yawTotalRad = ac.StructItem.double(),
   pitchTotalRad = ac.StructItem.double(),
   zoomTotal = ac.StructItem.double(),
   zoomDistanceTotal = ac.StructItem.double(),
+  zoomFovTotal = ac.StructItem.double(),
+  zoomDollyTotal = ac.StructItem.double(),
 
   recenterSeqNum = ac.StructItem.uint32(),
   recenterKeepValuesSeqNum = ac.StructItem.uint32(),
@@ -72,6 +85,13 @@ local yawTotalRad = controlsBridge.yawTotalRad or 0.0 ---@type number
 local pitchTotalRad = controlsBridge.pitchTotalRad or 0.0 ---@type number
 local zoomTotal = controlsBridge.zoomTotal or 0.0 ---@type number
 local zoomDistanceTotal = controlsBridge.zoomDistanceTotal or 0.0 ---@type number
+local zoomFovTotal = controlsBridge.zoomFovTotal or 0.0 ---@type number
+local zoomDollyTotal = controlsBridge.zoomDollyTotal or 0.0 ---@type number
+
+---@type boolean
+local rightDragWasDown = false
+---@type boolean
+local rightDragStartedFree = false
 
 ---@type BeamNGOrbitCameraInput
 M.cameraInput = {
@@ -79,6 +99,8 @@ M.cameraInput = {
   pitchStepRad = 0.0,
   zoomStep = 0.0,
   zoomDistanceStep = 0.0,
+  zoomFovStep = 0.0,
+  zoomDollyStep = 0.0,
   recenterPressed = false,
   recenterKeepValuesPressed = false,
   glanceLeft = false,
@@ -178,6 +200,35 @@ local function maxAbs(a, b)
   return math.abs(a) > math.abs(b) and a or b
 end
 
+---@return integer
+local function readWheelAction()
+  if Settings == nil then return 0 end
+  for i = 1, 2 do
+    local key = WHEEL_MODIFIER_KEYS[Settings.get('wheelModifier' .. i .. 'Key')]
+    if key ~= nil and ac.isKeyDown(key) then
+      return Settings.get('wheelModifier' .. i .. 'Action')
+    end
+  end
+  return Settings.get('wheelAction')
+end
+
+-- Wheel up makes the car bigger (closer or narrower); for the dolly zoom it moves closer and wider.
+---@param wheelDelta number
+local function applyMouseWheel(wheelDelta)
+  if wheelDelta == 0 then return end
+  wheelDelta = wheelDelta * Settings.get('zoomSens')
+
+  local cameraInput = M.cameraInput
+  local action = readWheelAction()
+  if action == WHEEL_ACTION_FOV then
+    cameraInput.zoomFovStep = -wheelDelta * MOUSE_FOV_WHEEL_STEP
+  elseif action == WHEEL_ACTION_DOLLY then
+    cameraInput.zoomDollyStep = -wheelDelta * MOUSE_DOLLY_WHEEL_STEP
+  else
+    cameraInput.zoomDistanceStep = -wheelDelta * MOUSE_ZOOM_WHEEL_STEP
+  end
+end
+
 ---@param dt number
 function M.update(dt)
   if Settings == nil then return end
@@ -214,17 +265,27 @@ function M.update(dt)
   cameraInput.pitchStepRad = pitchInput * ORBIT_PITCH_SPEED_RAD * dt
   cameraInput.zoomStep = zoomInput * dt
   cameraInput.zoomDistanceStep = 0
+  cameraInput.zoomFovStep = 0
+  cameraInput.zoomDollyStep = 0
 
-  if supportsMouse
-      and Settings.get('mouseControlScheme') == 1 and ui.mouseDown(ui.MouseButton.Right) then
+  local mouseControlScheme = supportsMouse and Settings.get('mouseControlScheme') or 0
+  local rightMouseDown = mouseControlScheme ~= 0 and ui.mouseDown(ui.MouseButton.Right)
+  if rightMouseDown and not rightDragWasDown then
+    -- Latch whether this press started over the world, not over an app window.
+    rightDragStartedFree = not ui.mouseBusy()
+  end
+  rightDragWasDown = rightMouseDown and true or false
+  local rightDragOrbit = rightMouseDown and rightDragStartedFree
+  if rightDragOrbit then
     local mouseDelta = ac.accessMouseDelta('camera', true, false) ---@type vec2
-    local mouseWheelDelta = ui.mouseWheel()
 
     cameraInput.yawStepRad = cameraInput.yawStepRad
-      - mouseDelta.x * MOUSE_ORBIT_SENSITIVITY_RAD
+      - mouseDelta.x * MOUSE_ORBIT_SENSITIVITY_RAD * orbitSens
     cameraInput.pitchStepRad = cameraInput.pitchStepRad
-      + mouseDelta.y * MOUSE_ORBIT_SENSITIVITY_RAD
-    cameraInput.zoomDistanceStep = -mouseWheelDelta * MOUSE_ZOOM_WHEEL_STEP
+      + mouseDelta.y * MOUSE_ORBIT_SENSITIVITY_RAD * orbitSens
+  end
+  if rightDragOrbit or mouseControlScheme == 2 and not ui.mouseBusy() then
+    applyMouseWheel(ui.mouseWheel())
   end
 
   cameraInput.recenterPressed = recenterButton:pressed()
@@ -238,6 +299,8 @@ function M.update(dt)
   pitchTotalRad = pitchTotalRad + cameraInput.pitchStepRad
   zoomTotal = zoomTotal + cameraInput.zoomStep
   zoomDistanceTotal = zoomDistanceTotal + cameraInput.zoomDistanceStep
+  zoomFovTotal = zoomFovTotal + cameraInput.zoomFovStep
+  zoomDollyTotal = zoomDollyTotal + cameraInput.zoomDollyStep
 end
 
 function M.writeToBridge()
@@ -247,6 +310,8 @@ function M.writeToBridge()
   controlsBridge.pitchTotalRad = pitchTotalRad
   controlsBridge.zoomTotal = zoomTotal
   controlsBridge.zoomDistanceTotal = zoomDistanceTotal
+  controlsBridge.zoomFovTotal = zoomFovTotal
+  controlsBridge.zoomDollyTotal = zoomDollyTotal
 
   if cameraInput.recenterPressed then
     controlsBridge.recenterSeqNum = (controlsBridge.recenterSeqNum + 1) % UINT32_WRAP
@@ -269,6 +334,8 @@ function M.reset()
   cameraInput.pitchStepRad = 0.0
   cameraInput.zoomStep = 0.0
   cameraInput.zoomDistanceStep = 0.0
+  cameraInput.zoomFovStep = 0.0
+  cameraInput.zoomDollyStep = 0.0
   cameraInput.recenterPressed = false
   cameraInput.recenterKeepValuesPressed = false
   cameraInput.glanceLeft = false
@@ -281,7 +348,7 @@ end
 ---@param button ac.ControlButton
 local function drawBinding(label, description, button)
   ui.text(label)
-  ui.sameLine(230)
+  ui.sameLine(Settings.LABEL_COL)
   fullWidthSize:set(ui.availableSpaceX(), 0)
   ---@cast commonControlFlags ui.ControlButtonControlFlags
   button:control(fullWidthSize, commonControlFlags)
@@ -289,77 +356,93 @@ local function drawBinding(label, description, button)
 end
 
 local function drawZoomModifierBinding()
-  ui.text('Zoom modifier')
-  ui.sameLine(230)
+  ui.text('Zoom button')
+  ui.sameLine(Settings.LABEL_COL)
   fullWidthSize:set(ui.availableSpaceX(), 0)
   ---@cast gamepadControlFlags ui.ControlButtonControlFlags
   zoomModifierButton:control(fullWidthSize, gamepadControlFlags)
   if ui.itemHovered() then
-    ui.setTooltip('Hold this button to activate zoom in control schemes that include it.')
+    ui.setTooltip('Hold while using the stick to zoom.')
   end
+end
+
+local function drawGamepad()
+  local scheme = Settings.get('gamepadControlScheme')
+
+  Settings.drawRowLabel('Orbit')
+  local orbitPicked = Settings.drawSegmented({ 'Off', 'Right stick' }, scheme == 0 and 1 or 2)
+  if orbitPicked ~= nil then Settings.set('gamepadControlScheme', orbitPicked == 1 and 0 or 1) end
+  if scheme == 0 then return end
+
+  Settings.drawRowLabel('Zoom with')
+  local zoomPicked = Settings.drawSegmented({ 'None', 'Left stick', 'Right stick', 'Right + turn' }, scheme)
+  if zoomPicked ~= nil then Settings.set('gamepadControlScheme', zoomPicked) end
+  if ui.itemHovered() then
+    ui.setTooltip('Hold the zoom button, then use the stick up/down. "Right + turn" also turns the camera.')
+  end
+  if scheme >= 2 then drawZoomModifierBinding() end
+
+  Settings.drawSlider('orbitStickDeadzone', true)
+  if scheme >= 2 then Settings.drawSlider('zoomStickDeadzone', true) end
+end
+
+local function drawWheel()
+  Settings.drawScheme('wheelAction', false)
+  for i = 1, 2 do
+    Settings.drawScheme('wheelModifier' .. i .. 'Key', false)
+    if Settings.get('wheelModifier' .. i .. 'Key') ~= 0 then
+      Settings.drawScheme('wheelModifier' .. i .. 'Action', false)
+    end
+  end
+end
+
+local function drawMouseOptions()
+  Settings.drawRowLabel('Orbit')
+  local scheme = Settings.get('mouseControlScheme')
+  local orbitPicked = Settings.drawSegmented({ 'Off', 'Right-drag' }, scheme == 0 and 1 or 2)
+  if orbitPicked ~= nil then Settings.set('mouseControlScheme', orbitPicked == 1 and 0 or 1) end
+  if scheme == 0 then return end
+
+  Settings.drawRowLabel('Wheel zooms')
+  local wheelPicked = Settings.drawSegmented({ 'Only while dragging', 'Always' }, scheme)
+  if wheelPicked ~= nil then Settings.set('mouseControlScheme', wheelPicked) end
+end
+
+local function drawKeys()
+  drawBinding('Orbit left', 'Keyboard, gamepad or wheel buttons.', orbitLeftButton)
+  drawBinding('Orbit right', 'Keyboard, gamepad or wheel buttons.', orbitRightButton)
+  drawBinding('Tilt down', 'Keyboard, gamepad or wheel buttons.', orbitDownButton)
+  drawBinding('Tilt up', 'Keyboard, gamepad or wheel buttons.', orbitUpButton)
+  drawBinding('Zoom out', 'Keyboard, gamepad or wheel buttons.', zoomOutButton)
+  drawBinding('Zoom in', 'Keyboard, gamepad or wheel buttons.', zoomInButton)
+  drawBinding('Straighten', 'Back behind the car, with the slider values.', recenterButton)
+  drawBinding('Straighten, keep view', 'Back behind the car, keeping the current distance, lens and angle.', recenterKeepValuesButton)
+end
+
+---@return string
+function M.controlsSummary()
+  local parts = {}
+  if supportsMouse and Settings.get('mouseControlScheme') ~= 0 then parts[#parts + 1] = 'Right-drag orbit · wheel zoom' end
+  if Settings.get('gamepadControlScheme') ~= 0 then parts[#parts + 1] = 'gamepad' end
+  return #parts > 0 and table.concat(parts, ' · ') or 'off'
 end
 
 function M.drawControlsTab()
   if Settings == nil then return end
 
-  ui.text('Common')
-  Settings.drawSlider('orbitSens', false)
-  Settings.drawSlider('zoomSens', false)
+  if supportsMouse and Settings.get('mouseControlScheme') ~= 0 then drawWheel() end
+  Settings.drawSlider('orbitSens', true)
+  Settings.drawSlider('zoomSens', true)
 
-  ui.separator()
-
-  ui.text('Bindings')
-  ui.separator()
-
-  drawBinding('Yaw left', 'Rotate camera left. Supports keyboard, gamepad and controllers.', orbitLeftButton)
-  drawBinding('Yaw right', 'Rotate camera right. Supports keyboard, gamepad and controllers.', orbitRightButton)
-  drawBinding('Pitch down', 'Rotate camera down. Supports keyboard, gamepad and controllers.', orbitDownButton)
-  drawBinding('Pitch up', 'Rotate camera up. Supports keyboard, gamepad and controllers.', orbitUpButton)
-  drawBinding('Zoom out', 'Increase camera distance. Supports keyboard, gamepad and controllers.', zoomOutButton)
-  drawBinding('Zoom in', 'Decrease camera distance. Supports keyboard, gamepad and controllers.', zoomInButton)
-  drawBinding('Recenter', 'Returns yaw, pitch and camera distance. Supports keyboard, gamepad and controllers.', recenterButton)
-  drawBinding(
-    'Recenter, keep pitch/distance',
-    'Returns yaw while preserving the current pitch and camera distance. Supports keyboard, gamepad and controllers.',
-    recenterKeepValuesButton
-  )
-
-  ui.newLine()
-  ui.text('Gamepad')
-  ui.separator()
-
-  Settings.drawScheme('gamepadControlScheme', false)
-
-  local controlScheme = Settings.get('gamepadControlScheme')
-  if controlScheme >= 2 then
-    drawZoomModifierBinding()
-  end
-
-  if controlScheme ~= 0 then
-    ui.treeNode('Advanced', function()
-      Settings.drawSlider('orbitStickDeadzone', false)
-
-      if controlScheme >= 2 then
-        Settings.drawSlider('zoomStickDeadzone', false)
-      end
-    end)
-  end
-
-  if supportsMouse then
-    ui.newLine()
-    ui.text('Mouse')
-    ui.separator()
-
-    Settings.drawScheme('mouseControlScheme', false)
-  end
-
-  ui.newLine()
-  ui.text('Additional')
-  ui.separator()
+  local gamepad = Settings.get('gamepadControlScheme')
+  if supportsMouse then ui.treeNode('Mouse options###mouse', drawMouseOptions) end
+  ui.treeNode('Gamepad: ' .. (gamepad == 0 and 'off' or gamepad == 1 and 'orbit' or 'orbit + zoom') .. '###gamepad', drawGamepad)
+  ui.treeNode('Keys and buttons###keys', drawKeys)
 
   Settings.drawCheckbox('disableGlance', false)
+  Settings.drawCheckbox('keepViewOnCarSwitch', false)
   if ui.itemHovered() then
-    ui.setTooltip('Disables camera response to the game glance left, right and back controls.')
+    ui.setTooltip('Off: each car starts from your default view. On: the same angle and zoom carry over.')
   end
 end
 
