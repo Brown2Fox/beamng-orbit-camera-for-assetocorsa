@@ -8,6 +8,7 @@
 ---@field dynamicFovAtSpeed number
 ---@field dynamicPitchAtSpeed number
 ---@field dynamicHeightAtSpeed number
+---@field glanceTransitionDuration number
 ---@field collisionHandlingMethod number
 ---@field disableCollisionWhenRecentered boolean
 
@@ -52,6 +53,7 @@ local currentCarIndex = -1
 ---@field dynamicFovAtSpeed number
 ---@field dynamicPitchAtSpeedRad number
 ---@field dynamicHeightAtSpeed number
+---@field glanceTransitionDuration number
 ---@field collisionHandlingMethod number
 ---@field disableCollisionWhenRecentered boolean
 
@@ -65,6 +67,7 @@ local runtimeConfig = {
   dynamicFovAtSpeed = 40.0,
   dynamicPitchAtSpeedRad = math.rad(7.0),
   dynamicHeightAtSpeed = 0.4,
+  glanceTransitionDuration = 0.15,
   collisionHandlingMethod = 1,
   disableCollisionWhenRecentered = false,
 }
@@ -122,7 +125,6 @@ local COLLISION_HANDLING_VISUALS = 2
 local MANUAL_YAW_LOCK_THRESHOLD_RAD = math.rad(10)
 local GLANCE_MOVEMENT_HEADING_START_SPEED = 2.0
 local GLANCE_MOVEMENT_HEADING_FULL_SPEED = 8.0
-local GLANCE_TRANSITION_DURATION = 0.15
 
 local orbitYawRad = 0.0
 local orbitPitchRad = 0.0
@@ -255,6 +257,9 @@ end
 ---@param config BeamNGOrbitCameraConfig
 local function applyRuntimeConfig(config)
   if config == nil then return end
+
+  runtimeConfig.glanceTransitionDuration = math.clamp(
+    tonumber(config.glanceTransitionDuration) or runtimeConfig.glanceTransitionDuration, 0, 1)
 
   local cameraDistance = config.cameraDistance or runtimeConfig.cameraDistance
   local cameraFov = config.cameraFov or runtimeConfig.cameraFov
@@ -443,9 +448,13 @@ local function updateGlanceForward(dt, input, carHeading, velocity, normalForwar
     glanceMode = nextGlanceMode
   end
 
+  if runtimeConfig.glanceTransitionDuration == 0 then
+    glanceTransitionActive = false
+  end
+
   if glanceTransitionActive then
     glanceTransitionElapsed = glanceTransitionElapsed + math.max(dt, 0)
-    local glanceT = math.clamp(glanceTransitionElapsed / GLANCE_TRANSITION_DURATION, 0, 1)
+    local glanceT = math.clamp(glanceTransitionElapsed / runtimeConfig.glanceTransitionDuration, 0, 1)
     glanceT = glanceT * glanceT * (3 - 2 * glanceT)
     interpolateForward(
       glanceTransitionStartForward,
@@ -455,7 +464,7 @@ local function updateGlanceForward(dt, input, carHeading, velocity, normalForwar
     )
     glanceRenderedForward:set(out)
 
-    if glanceTransitionElapsed >= GLANCE_TRANSITION_DURATION then
+    if glanceTransitionElapsed >= runtimeConfig.glanceTransitionDuration then
       glanceTransitionActive = false
       glanceRenderedForward:set(glanceTargetForward)
       out:set(glanceTargetForward)

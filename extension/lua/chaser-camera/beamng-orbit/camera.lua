@@ -14,6 +14,7 @@ local paramsBridge = ac.connect({
   dynamicFovAtSpeed = ac.StructItem.double(),
   dynamicPitchAtSpeed = ac.StructItem.double(),
   dynamicHeightAtSpeed = ac.StructItem.double(),
+  glanceTransitionDuration = ac.StructItem.double(),
   collisionHandlingMethod = ac.StructItem.uint32(),
   disableCollisionWhenRecentered = ac.StructItem.boolean(),
 }, false, ac.SharedNamespace.Shared)
@@ -58,6 +59,7 @@ local cameraConfig = {
   dynamicFovAtSpeed = 40.0,
   dynamicPitchAtSpeed = 7.0,
   dynamicHeightAtSpeed = 0.4,
+  glanceTransitionDuration = 0.15,
   collisionHandlingMethod = 1,
   disableCollisionWhenRecentered = false,
 }
@@ -101,6 +103,7 @@ local function syncCameraParams()
   local dynamicFovAtSpeed = paramsBridge.dynamicFovAtSpeed
   local dynamicPitchAtSpeed = paramsBridge.dynamicPitchAtSpeed
   local dynamicHeightAtSpeed = paramsBridge.dynamicHeightAtSpeed
+  local glanceTransitionDuration = paramsBridge.glanceTransitionDuration
   local collisionHandlingMethod = paramsBridge.collisionHandlingMethod
   local disableCollisionWhenRecentered =
     paramsBridge.disableCollisionWhenRecentered
@@ -116,6 +119,7 @@ local function syncCameraParams()
   cameraConfig.dynamicFovAtSpeed = dynamicFovAtSpeed
   cameraConfig.dynamicPitchAtSpeed = dynamicPitchAtSpeed
   cameraConfig.dynamicHeightAtSpeed = dynamicHeightAtSpeed
+  cameraConfig.glanceTransitionDuration = glanceTransitionDuration
   cameraConfig.collisionHandlingMethod = collisionHandlingMethod
   cameraConfig.disableCollisionWhenRecentered =
     disableCollisionWhenRecentered

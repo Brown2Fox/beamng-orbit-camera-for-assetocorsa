@@ -364,14 +364,6 @@ function M.drawControlsTab()
     Settings.drawScheme('mouseControlScheme', false)
   end
 
-  ui.newLine()
-  ui.text('Additional')
-  ui.separator()
-
-  Settings.drawCheckbox('disableGlance', false)
-  if ui.itemHovered() then
-    ui.setTooltip('Disables camera response to the game glance left, right and back controls.')
-  end
 end
 
 return M

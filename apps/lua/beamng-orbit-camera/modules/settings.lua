@@ -53,6 +53,7 @@ local cameraParams = {
 
 ---@type table<string, ParamDef>
 local controlParams = {
+  glanceTransitionDuration = { displayName = 'Glance transition time', defaultValue = 0.15, minValue = 0.0, maxValue = 1.0, format = '%.2f s', kind = 'slider' },
   disableGlance = { displayName = 'Disable glance left/right/back', defaultValue = 0, kind = 'cbox' },
   gamepadControlScheme = { displayName = 'Control scheme', defaultValue = 2, options = GAMEPAD_CONTROL_SCHEMES, kind = 'scheme' },
   mouseControlScheme = { displayName = 'Control scheme', defaultValue = 1, options = MOUSE_CONTROL_SCHEMES, kind = 'scheme' },
@@ -157,6 +158,7 @@ end
 ---@field dynamicFovAtSpeed number
 ---@field dynamicPitchAtSpeed number
 ---@field dynamicHeightAtSpeed number
+---@field glanceTransitionDuration number
 ---@field collisionHandlingMethod integer
 ---@field disableCollisionWhenRecentered boolean
 
@@ -173,6 +175,7 @@ local paramsBridge = ac.connect({
   dynamicFovAtSpeed = ac.StructItem.double(),
   dynamicPitchAtSpeed = ac.StructItem.double(),
   dynamicHeightAtSpeed = ac.StructItem.double(),
+  glanceTransitionDuration = ac.StructItem.double(),
   collisionHandlingMethod = ac.StructItem.uint32(),
   disableCollisionWhenRecentered = ac.StructItem.boolean(),
 }, false, ac.SharedNamespace.Shared)
@@ -186,6 +189,7 @@ M.cameraConfig = {
   dynamicFovAtSpeed = cameraParams.dynamicFovAtSpeed.defaultValue,
   dynamicPitchAtSpeed = cameraParams.dynamicPitchAtSpeed.defaultValue,
   dynamicHeightAtSpeed = cameraParams.dynamicHeightAtSpeed.defaultValue,
+  glanceTransitionDuration = controlParams.glanceTransitionDuration.defaultValue,
   collisionHandlingMethod = collisionParams.collisionHandlingMethod.defaultValue,
   disableCollisionWhenRecentered = collisionParams.disableCollisionWhenRecentered.defaultValue == 1,
 }
@@ -281,6 +285,7 @@ function M.update()
   local dynamicFovAtSpeed = M.get('dynamicFovAtSpeed')
   local dynamicPitchAtSpeed = M.get('dynamicPitchAtSpeed')
   local dynamicHeightAtSpeed = M.get('dynamicHeightAtSpeed')
+  local glanceTransitionDuration = M.get('glanceTransitionDuration')
   local collisionHandlingMethod = M.get('collisionHandlingMethod') ---@cast collisionHandlingMethod integer
   local disableCollisionWhenRecentered = M.get('disableCollisionWhenRecentered') == 1
 
@@ -293,6 +298,7 @@ function M.update()
     or dynamicFovAtSpeed ~= cameraConfig.dynamicFovAtSpeed
     or dynamicPitchAtSpeed ~= cameraConfig.dynamicPitchAtSpeed
     or dynamicHeightAtSpeed ~= cameraConfig.dynamicHeightAtSpeed
+    or glanceTransitionDuration ~= cameraConfig.glanceTransitionDuration
     or collisionHandlingMethod ~= cameraConfig.collisionHandlingMethod
     or disableCollisionWhenRecentered
       ~= cameraConfig.disableCollisionWhenRecentered
@@ -305,6 +311,7 @@ function M.update()
   cameraConfig.dynamicFovAtSpeed = dynamicFovAtSpeed
   cameraConfig.dynamicPitchAtSpeed = dynamicPitchAtSpeed
   cameraConfig.dynamicHeightAtSpeed = dynamicHeightAtSpeed
+  cameraConfig.glanceTransitionDuration = glanceTransitionDuration
   cameraConfig.collisionHandlingMethod = collisionHandlingMethod
   cameraConfig.disableCollisionWhenRecentered = disableCollisionWhenRecentered
 
@@ -319,6 +326,7 @@ function M.update()
   paramsBridge.dynamicFovAtSpeed = dynamicFovAtSpeed
   paramsBridge.dynamicPitchAtSpeed = dynamicPitchAtSpeed
   paramsBridge.dynamicHeightAtSpeed = dynamicHeightAtSpeed
+  paramsBridge.glanceTransitionDuration = glanceTransitionDuration
   paramsBridge.collisionHandlingMethod = collisionHandlingMethod
   paramsBridge.disableCollisionWhenRecentered = disableCollisionWhenRecentered
   paramsBridge.seqNum = (paramsBridge.seqNum + 1) % UINT32_WRAP
