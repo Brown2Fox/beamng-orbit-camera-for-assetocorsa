@@ -23,6 +23,9 @@ local zoomInButton = ac.ControlButton('beamng_orbit_camera.zoom_in', { keyboard 
 local recenterButton = ac.ControlButton('beamng_orbit_camera.recenter', { keyboard = { key = ac.KeyIndex.NumPad5 }, hold = false })
 local recenterKeepValuesButton = ac.ControlButton('beamng_orbit_camera.recenter_keep_values', { keyboard = { key = ac.KeyIndex.NumPad5, ctrl = true }, hold = false })
 
+local previousPresetButton = ac.ControlButton('beamng_orbit_camera.previous_preset', { hold = false })
+local nextPresetButton = ac.ControlButton('beamng_orbit_camera.next_preset', { hold = false })
+
 local glanceLeftButton = ac.ControlButton('GLANCELEFT')
 local glanceRightButton = ac.ControlButton('GLANCERIGHT')
 local glanceBackButton = ac.ControlButton('GLANCEBACK')
@@ -182,6 +185,12 @@ end
 function M.update(dt)
   if Settings == nil then return end
 
+  local previousPresetPressed = previousPresetButton:pressed()
+  local nextPresetPressed = nextPresetButton:pressed()
+  if previousPresetPressed ~= nextPresetPressed then
+    Settings.cyclePreset(nextPresetPressed and 1 or -1)
+  end
+
   local cameraInput = M.cameraInput
   local gamepadYawInput, gamepadPitchInput = readGamepadOrbit()
   local buttonYawInput, buttonPitchInput = readButtonOrbit()
@@ -323,6 +332,8 @@ function M.drawControlsTab()
     'Returns yaw while preserving the current pitch and camera distance. Supports keyboard, gamepad and controllers.',
     recenterKeepValuesButton
   )
+  drawBinding('Previous preset', 'Select the previous preset, wrapping from the first to the last. Unsaved changes are replaced.', previousPresetButton)
+  drawBinding('Next preset', 'Select the next preset, wrapping from the last to the first. Unsaved changes are replaced.', nextPresetButton)
 
   ui.newLine()
   ui.text('Gamepad')

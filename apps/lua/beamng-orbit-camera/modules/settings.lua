@@ -476,10 +476,15 @@ function M.drawCollisionSettings()
   M.drawScheme('collisionHandlingMethod', false)
 end
 
+---@param direction integer
+function M.cyclePreset(direction)
+  Presets.cycle(direction)
+end
+
 function M.drawCameraTab()
   ui.text('Camera')
   if ui.itemHovered() then
-    ui.setTooltip('Gray values show the camera\'s actual values, including offsets at speed and manual orbit adjustments.')
+    ui.setTooltip('Actual values (gray numbers on the right of the sliders) include offsets at speed and manual orbit adjustments.')
   end
   ui.separator()
 
@@ -515,15 +520,15 @@ function M.drawCameraTab()
   if ui.itemHovered() then
     ui.setTooltip('Recenters the camera while keeping its actual distance and pitch.')
   end
+  ui.newLine()
+  Presets.draw()
   fullWidthSize:set(ui.availableSpaceX(), 0)
-  if ui.button('Capture current pitch/distance', fullWidthSize) then
+  if ui.button('Capture current values', fullWidthSize) then
     setDistanceAndPitchFromOrbit()
   end
   if ui.itemHovered() then
-    ui.setTooltip('Copies the actual camera distance and pitch to the settings so they can be saved in a preset.')
+    ui.setTooltip('Copies the current orbit distance and pitch to the settings so they can be saved in a preset. Speed offsets are not included.')
   end
-  ui.newLine()
-  Presets.draw()
 end
 
 return M

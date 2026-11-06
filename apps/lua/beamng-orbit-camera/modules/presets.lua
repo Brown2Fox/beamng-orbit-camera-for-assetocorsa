@@ -249,6 +249,19 @@ local function selectPreset(value)
   selectedPresetStorage:set(selectedPresetId)
 end
 
+---@param direction integer
+function M.cycle(direction)
+  if #presets < 2 or direction == 0 then return end
+  for index, preset in ipairs(presets) do
+    if preset.id == selectedPresetId then
+      local nextIndex = (index - 1 + direction) % #presets + 1
+      local nextPreset = presets[nextIndex] ---@type BeamNGOrbitCameraPreset?
+      if nextPreset then selectPreset(nextPreset.id) end
+      return
+    end
+  end
+end
+
 local function getSelectedPresetName()
   local preset = getSelectedPreset()
   return preset and preset.name or 'No preset'
