@@ -1,6 +1,7 @@
 
 ---@class BeamNGOrbitCameraSettingsModule
 local M = {}
+local Presets = require('modules/presets')
 
 local cspMajor, cspMinor = (ac.getPatchVersion() or ''):match('^(%d+)%.(%d+)')
 local supportsCollisions = (tonumber(cspMajor) or 0) > 0 or (tonumber(cspMinor) or 0) >= 3
@@ -99,7 +100,7 @@ end
 local function resetParamVal(key)
   local paramDef = getParamDef(key)
   if paramDef == nil then return end
-  setParamVal(key, paramDef.defaultValue)
+  setParamVal(key, Presets.getReferenceParamVal(key))
 end
 
 local function resetCameraParams()
@@ -127,6 +128,14 @@ end
 registerParams(cameraParams)
 registerParams(controlParams)
 registerParams(collisionParams)
+Presets.initialize({
+  cameraParams = cameraParams,
+  getParamDef = getParamDef,
+  getParamVal = getParamVal,
+  setParamVal = setParamVal,
+  clampParamValIfNeeded = clampParamValIfNeeded,
+  resetCameraParams = resetCameraParams,
+})
 
 ---@param key string
 ---@return number
@@ -323,7 +332,7 @@ local function drawParamLabel(key, highlightIfModified)
   local paramDef = getParamDef(key)
   if paramDef == nil then return end
 
-  if highlightIfModified and getParamVal(key) ~= paramDef.defaultValue then
+  if highlightIfModified and Presets.isParamModified(key) then
     ui.pushStyleColor(ui.StyleColor.Text, MODIFIED_PARAM_COLOR)
     ui.text(paramDef.displayName)
     ui.popStyleColor()
@@ -341,7 +350,7 @@ function M.drawSlider(key, highlightIfModified)
 
   local valueObj = paramStorage[key] ---@type ac.StoredValue
   local value = clampParamValIfNeeded(tonumber(valueObj:get()), paramDef)
-  local needHighlight = highlightIfModified and value ~= paramDef.defaultValue
+  local needHighlight = highlightIfModified and Presets.isParamModified(key)
 
   drawParamLabel(key, highlightIfModified)
   ui.sameLine(230)
@@ -511,12 +520,10 @@ function M.drawCameraTab()
     setDistanceAndPitchFromOrbit()
   end
   if ui.itemHovered() then
-    ui.setTooltip('Copies the actual camera distance and pitch to the settings.')
+    ui.setTooltip('Copies the actual camera distance and pitch to the settings so they can be saved in a preset.')
   end
-  fullWidthSize:set(ui.availableSpaceX(), 0)
-  if ui.button('Reset all values to default', fullWidthSize) then
-    resetCameraParams()
-  end
+  ui.newLine()
+  Presets.draw()
 end
 
 return M
