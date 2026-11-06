@@ -5,7 +5,8 @@ local PRESET_SELECTED_STORAGE_KEY = 'beamng_orbit_camera.selected_camera_preset'
 local DEFAULT_PRESET_NAME = 'BeamNG.drive defaults'
 local DEFAULT_PRESET_ID = 'beamng-drive-defaults'
 local PRESET_DIRECTORY = ac.getFolder(ac.FolderID.ScriptConfig) .. '/presets'
-local selectedPresetStorage = ac.storage(PRESET_SELECTED_STORAGE_KEY, DEFAULT_PRESET_ID)
+local selectedPresetStorage = ac.storage(PRESET_SELECTED_STORAGE_KEY, DEFAULT_PRESET_ID) --[[@as ac.StoredValue]]
+---@type table<string, boolean>
 local RESERVED_PRESET_FILENAMES = {
   CON = true,
   PRN = true,
@@ -46,7 +47,7 @@ local RESERVED_PRESET_FILENAMES = {
 ---@field resetCameraParams fun()
 
 ---@type BeamNGOrbitCameraPresetsContext
-local Context = {}
+local Context
 
 ---@type BeamNGOrbitCameraPreset[]
 local presets = {}
@@ -67,6 +68,7 @@ local presetActionsButtonSize = vec2()
 local presetRenameSaveButtonSize = vec2()
 local presetRenameCancelButtonSize = vec2()
 local presetComboFramePadding = vec2()
+---@type string?
 local presetActionsId = nil
 local MODIFIED_PARAM_COLOR = rgbm.colors.yellow
 local PRESET_BUTTON_SPACING = 8
@@ -109,7 +111,9 @@ local function hasCameraChanges()
   return false
 end
 
+---@return table<string, number>
 local function getDefaultCameraConfig()
+  ---@type table<string, number>
   local result = {}
   for key, paramDef in pairs(Context.cameraParams) do
     result[key] = paramDef.defaultValue
@@ -117,14 +121,18 @@ local function getDefaultCameraConfig()
   return result
 end
 
+---@param rawPreset {id: string, name: string, cameraConfig: table<string, number>, filename: string?}
+---@return BeamNGOrbitCameraPreset?
 local function normalizePreset(rawPreset)
   if type(rawPreset) ~= 'table' or type(rawPreset.id) ~= 'string' or type(rawPreset.name) ~= 'string' then
     return nil
   end
+  ---@type table<string, number>
   local cameraConfig = {}
   if type(rawPreset.cameraConfig) == 'table' then
     for key in pairs(Context.cameraParams) do
-      local value = rawPreset.cameraConfig[key]
+      local values = rawPreset.cameraConfig --[[@as table<string, number>]]
+      local value = values[key]
       if type(value) == 'number' then cameraConfig[key] = value end
     end
   end
@@ -161,6 +169,7 @@ local function loadPresetFile(filename)
   local id = config:get('PRESET', 'ID', '')
   local name = config:get('PRESET', 'NAME', '')
   if id == '' or id == DEFAULT_PRESET_ID or name == '' then return nil end
+  ---@type table<string, number>
   local cameraConfig = {}
   for key in pairs(Context.cameraParams) do
     local value = config:get('CAMERA', key, ac.INIConfig.OptionalNumber)
@@ -177,6 +186,7 @@ end
 
 local function loadPresetsFromFiles()
   presets = {}
+  ---@type table<string, boolean>
   local loadedIds = {}
   local filenames = io.scanDir(PRESET_DIRECTORY, '*.ini') or {}
   table.sort(filenames)
@@ -198,7 +208,9 @@ local function ensureDefaultPreset()
   })
 end
 
+---@return table<string, number>
 local function snapshotCameraConfig()
+  ---@type table<string, number>
   local snapshot = {}
   for key in pairs(Context.cameraParams) do
     snapshot[key] = Context.clampParamValIfNeeded(Context.getParamVal(key), Context.getParamDef(key))
@@ -206,12 +218,15 @@ local function snapshotCameraConfig()
   return snapshot
 end
 
+---@param snapshot table<string, number>
 local function applyCameraConfig(snapshot)
   for key in pairs(Context.cameraParams) do
     Context.setParamVal(key, Context.clampParamValIfNeeded(snapshot[key], Context.getParamDef(key)))
   end
 end
 
+---@param value string
+---@return boolean
 local function hasPresetById(value)
   for _, preset in ipairs(presets) do
     if preset.id == value then return true end
@@ -219,6 +234,7 @@ local function hasPresetById(value)
   return false
 end
 
+---@param value string
 local function selectPreset(value)
   if not hasPresetById(value) then return end
   presetNameDraft = nil
@@ -286,6 +302,7 @@ end
 ---@param name string
 local function saveCurrentPreset(name)
   if getPresetNameError(name) then return end
+  ---@type BeamNGOrbitCameraPreset
   local preset = {
     id = createPresetId(),
     name = name,
@@ -352,6 +369,7 @@ end
 ---@param id string
 local function deletePreset(id)
   if id == DEFAULT_PRESET_ID then return end
+  ---@type integer?
   local removeIndex = nil
   for index, preset in ipairs(presets) do
     if preset.id == id then
@@ -361,6 +379,7 @@ local function deletePreset(id)
   end
   if removeIndex == nil then return end
   local preset = presets[removeIndex]
+  if preset == nil or preset.filename == nil then return end
   local presetPath = PRESET_DIRECTORY .. '/' .. preset.filename
   if not io.deleteFile(presetPath) then return end
   io.deleteFile(presetPath .. '.bak')
@@ -392,7 +411,7 @@ local function drawPresetSelector()
   local modified = hasCameraChanges()
   local selected = getSelectedPreset()
   local canUpdate = modified and selected and selected.id ~= DEFAULT_PRESET_ID
-  local buttonsWidth = 0
+  local buttonsWidth = 0.0
   if presetNameDraft ~= nil and presetRenameId == nil then
     buttonsWidth = getPresetButtonWidth('Save') + getPresetButtonWidth('Cancel') + PRESET_BUTTON_SPACING * 2
   else
@@ -409,10 +428,10 @@ local function drawPresetSelector()
       ui.setKeyboardFocusHere()
       focusPresetName = false
     end
-    local submitted
-    presetNameDraft, _, submitted = ui.inputText('##cameraPresetName', presetNameDraft)
+    local _, submitted
+    presetNameDraft, _, submitted = ui.inputText('##cameraPresetName', presetNameDraft --[[@as string]])
     ui.popItemWidth()
-    local name = presetNameDraft:match('^%s*(.-)%s*$')
+    local name = presetNameDraft:match('^%s*(.-)%s*$') or ''
     local nameError = getPresetNameError(name, presetRenameId)
     local saveClicked = drawPresetButton('Save')
     local cancelClicked = drawPresetButton('Cancel')
@@ -442,8 +461,11 @@ local function drawPresetSelector()
   ui.popStyleVar()
   ui.popStyleVar()
   ui.popStyleVar()
+  ---@type string?
   local presetToSelect = nil
+  ---@type string?
   local presetToDelete = nil
+  ---@type BeamNGOrbitCameraPreset?
   local presetToRename = nil
   if comboOpen then
     if modified then ui.pushFont(ui.Font.Main) end
@@ -478,10 +500,10 @@ local function drawPresetSelector()
           ui.setKeyboardFocusHere()
           focusPresetName = false
         end
-        local submitted
-        presetNameDraft, _, submitted = ui.inputText('##renamePreset' .. preset.id, presetNameDraft)
+        local _, submitted
+        presetNameDraft, _, submitted = ui.inputText('##renamePreset' .. preset.id, presetNameDraft --[[@as string]])
         ui.popItemWidth()
-        local name = presetNameDraft:match('^%s*(.-)%s*$')
+        local name = presetNameDraft:match('^%s*(.-)%s*$') or ''
         local nameError = getPresetNameError(name, presetRenameId)
         ui.sameLine(0, 0)
         local saveClicked = ui.button('Save###savePresetName' .. preset.id, presetRenameSaveButtonSize)
@@ -491,7 +513,7 @@ local function drawPresetSelector()
           presetNameDraft = nil
           presetRenameId = nil
         elseif (saveClicked or submitted) and not nameError then
-          renamePreset(presetRenameId, name)
+          renamePreset(preset.id, name)
         elseif nameError then
           ui.textColored(nameError, MODIFIED_PARAM_COLOR)
         end
@@ -573,7 +595,7 @@ function M.initialize(context)
   Context = context
   loadPresetsFromFiles()
   ensureDefaultPreset()
-  selectedPresetId = selectedPresetStorage:get()
+  selectedPresetId = tostring(selectedPresetStorage:get())
   if not hasPresetById(selectedPresetId) then
     selectedPresetId = presets[1] and presets[1].id or ''
     selectedPresetStorage:set(selectedPresetId)
