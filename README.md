@@ -12,7 +12,7 @@ A calm, smooth camera, without unnecessary shake. Well suited to drifting and ra
 
 <div align="center">
   <a href="https://www.youtube.com/watch?v=bgEGF9AT-Ps" target="_blank">
-    <img src="https://utfs.io/f/nGnSqDveMsqxa2oqMUuADdzv8Pr5ybLj14U2EZXKMNIwm7GQ" width="60%" style="border: 2px solid #30363d;">
+    <img src="https://thumbs.video-to-markdown.com/c3049541.jpg" width="60%" style="border: 2px solid #30363d;">
   </a>
 </div>
 
