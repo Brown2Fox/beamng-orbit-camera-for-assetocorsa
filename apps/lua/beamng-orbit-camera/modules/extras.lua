@@ -10,9 +10,11 @@ function M.drawExtrasTab()
   if ui.itemHovered() then
     ui.setTooltip('Disables camera response to glance left, right and back. These use the standard game controls, configured in Content Manager, not in this app.')
   end
-  Settings.drawSlider('glanceTransitionDuration', false)
-  if ui.itemHovered() then
-    ui.setTooltip('Time to switch glance views and return to the orbit camera. 0 = instant.')
+  if Settings.get('disableGlance') == 0 then
+    Settings.drawSlider('glanceTransitionDuration', false)
+    if ui.itemHovered() then
+      ui.setTooltip('Time to switch glance views and return to the orbit camera. 0 = instant.')
+    end
   end
   ui.newLine()
   Settings.drawCollisionSettings()
