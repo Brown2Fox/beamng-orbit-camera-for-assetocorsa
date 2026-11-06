@@ -231,5 +231,5 @@ function update(dt, cameraIndex)
 end
 
 function script.onCarChanged()
-  OrbitCamera.reset()
+  OrbitCamera.reset(ac.getSim().isReplayActive)
 end

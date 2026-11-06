@@ -213,12 +213,14 @@ local function resetCollisionState()
   collisionHasLastNearClipCenter = false
 end
 
-local function resetCameraState()
-  orbitInitialized = false
-  cameraOrbitActive = false
-
-  lockCamera = false
-  accumulatedManualYawRad = 0.0
+---@param keepOrbit boolean?
+local function resetCameraState(keepOrbit)
+  if not keepOrbit then
+    orbitInitialized = false
+    cameraOrbitActive = false
+    lockCamera = false
+    accumulatedManualYawRad = 0.0
+  end
   lastAppliedFov = runtimeConfig.cameraFov
 
   headingReference:set(0, 0, 1)
@@ -1041,7 +1043,7 @@ function M.update(dt, targetCar, config, input)
   if car == nil or currentCarIndex ~= targetCar.index then
     car = targetCar
     currentCarIndex = targetCar.index
-    resetCameraState()
+    resetCameraState(ac.getSim().isReplayActive)
   else
     car = targetCar
   end
@@ -1219,8 +1221,13 @@ function M.update(dt, targetCar, config, input)
   return outputPose
 end
 
-function M.reset()
-  resetCameraState()
+---@param keepOrbit boolean?
+function M.reset(keepOrbit)
+  resetCameraState(keepOrbit)
 end
+
+ac.onReplay(function()
+  resetCameraState(true)
+end)
 
 return M

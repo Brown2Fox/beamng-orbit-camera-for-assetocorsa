@@ -42,6 +42,11 @@ local function requestRecenter(keepValues)
 end
 
 local function updateAutomaticRecenter()
+  if ac.getSim().isReplayActive then
+    playerWasInPit = false
+    return
+  end
+
   local playerCar = ac.getCar(0)
   if playerCar == nil then
     return
