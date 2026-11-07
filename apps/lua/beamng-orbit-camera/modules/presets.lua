@@ -527,13 +527,16 @@ local function drawPresetSelector()
     if modified then ui.pushFont(ui.Font.Main) end
     local editingId = presetRenameId
     local cloning = presetCloneConfig ~= nil
+    local closeOnEnter = not editingId and not cloning and ui.windowFocused()
+      and (ui.keyboardButtonPressed(ui.getKeyIndex(ui.Key.Enter), false)
+        or ui.keyboardButtonPressed(ui.getKeyIndex(ui.Key.KeyPadEnter), false))
     for _, preset in ipairs(presets) do
       if editingId == preset.id then
         drawPresetNameRow(editingId)
       elseif editingId or cloning then
         ui.selectable(preset.name .. '###' .. preset.id, preset.id == selectedPresetId, ui.SelectableFlags.Disabled)
       else
-        if ui.selectable(preset.name .. '###' .. preset.id, preset.id == selectedPresetId) then
+        if ui.selectable(preset.name .. '###' .. preset.id, preset.id == selectedPresetId) and not closeOnEnter then
           presetToSelect = preset.id
         end
         if ui.beginPopupContextItem('presetContext' .. preset.id, ui.MouseButton.Right) then
@@ -551,6 +554,7 @@ local function drawPresetSelector()
       end
     end
     if cloning then drawPresetNameRow(nil) end
+    if closeOnEnter then ui.closePopup() end
     if modified then ui.popFont() end
     ui.endCombo()
   elseif presetRenameId or presetCloneConfig then
