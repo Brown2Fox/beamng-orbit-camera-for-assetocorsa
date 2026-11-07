@@ -535,7 +535,7 @@ function M.drawCameraTab()
     setDistanceAndPitchFromOrbit()
   end
   if ui.itemHovered() then
-    ui.setTooltip('Copies the current orbit distance and pitch to the settings so they can be saved in a preset. Speed offsets are not included.')
+    ui.setTooltip('Copies the current camera distance and pitch (gray values) to the settings so they can be saved in a preset.')
   end
 end
 
