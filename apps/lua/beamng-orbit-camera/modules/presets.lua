@@ -60,22 +60,11 @@ local presetRenameId = nil
 
 local focusPresetName = false
 local presetButtonSize = vec2()
-local presetRowSize = vec2()
-local presetRowEnd = vec2()
-local presetRenameButtonSize = vec2()
-local presetDeleteButtonSize = vec2()
-local presetActionsButtonSize = vec2()
-local presetRenameSaveButtonSize = vec2()
-local presetRenameCancelButtonSize = vec2()
-local presetComboFramePadding = vec2()
----@type string?
-local presetActionsId = nil
+local presetEditorPadding = vec2(3, 0)
+---@type table<string, number>?
+local presetCloneConfig = nil
 local MODIFIED_PARAM_COLOR = rgbm.colors.yellow
 local PRESET_BUTTON_SPACING = 8
-local PRESET_ROW_SPACING = vec2(0, 0)
-local PRESET_ROW_PADDING = vec2(0, 0)
-local PRESET_ROW_TEXT_ALIGN = vec2(0, 0.5)
-local PRESET_TRANSPARENT_BACKGROUND = rgbm(0, 0, 0, 0)
 
 ---@return BeamNGOrbitCameraPreset?
 local function getSelectedPreset()
@@ -237,6 +226,7 @@ end
 ---@param value string
 local function selectPreset(value)
   if not hasPresetById(value) then return end
+  presetCloneConfig = nil
   presetNameDraft = nil
   presetRenameId = nil
   selectedPresetId = value
@@ -262,9 +252,11 @@ function M.cycle(direction)
   end
 end
 
+---@return string
 local function getSelectedPresetName()
   local preset = getSelectedPreset()
-  return preset and preset.name or 'No preset'
+  if preset then return preset.name end
+  return 'No preset'
 end
 
 local function createPresetId()
@@ -293,6 +285,16 @@ end
 
 ---@param name string
 ---@param excludedId string?
+---@return boolean
+local function presetNameTaken(name, excludedId)
+  for _, preset in ipairs(presets) do
+    if preset.id ~= excludedId and preset.name:lower() == name:lower() then return true end
+  end
+  return false
+end
+
+---@param name string
+---@param excludedId string?
 ---@return string?
 local function getPresetNameError(name, excludedId)
   if name == '' then return 'Enter a preset name.' end
@@ -304,25 +306,24 @@ local function getPresetNameError(name, excludedId)
   if RESERVED_PRESET_FILENAMES[filenameStem] then
     return 'Preset name cannot be used as a file name.'
   end
-  for _, preset in ipairs(presets) do
-    if preset.id ~= excludedId and preset.name:lower() == name:lower() then
-      return 'A preset with this name already exists.'
-    end
-  end
+  if presetNameTaken(name, excludedId) then return 'A preset with this name already exists.' end
   return nil
 end
 
 ---@param name string
-local function saveCurrentPreset(name)
+---@param snapshot table<string, number>?
+local function saveCurrentPreset(name, snapshot)
   if getPresetNameError(name) then return end
   ---@type BeamNGOrbitCameraPreset
   local preset = {
     id = createPresetId(),
     name = name,
-    cameraConfig = snapshotCameraConfig(),
+    cameraConfig = snapshot or snapshotCameraConfig(),
   }
   if not savePresetFile(preset) then return end
   table.insert(presets, preset)
+  if snapshot then applyCameraConfig(snapshot) end
+  presetCloneConfig = nil
   selectedPresetId = preset.id
   presetNameDraft = nil
   presetRenameId = nil
@@ -415,189 +416,162 @@ local function drawPresetButton(label)
 end
 
 local function startAddingPreset()
+  presetCloneConfig = nil
   presetRenameId = nil
   presetNameDraft = nextAvailablePresetName()
   focusPresetName = true
 end
 
-local function drawPresetSelector()
-  local modified = hasCameraChanges()
-  local selected = getSelectedPreset()
-  local canUpdate = modified and selected and selected.id ~= DEFAULT_PRESET_ID
-  local buttonsWidth = 0.0
-  if presetNameDraft ~= nil and presetRenameId == nil then
-    buttonsWidth = getPresetButtonWidth('Save') + getPresetButtonWidth('Cancel') + PRESET_BUTTON_SPACING * 2
-  else
-    if canUpdate then
-      buttonsWidth = buttonsWidth + getPresetButtonWidth('Save') + PRESET_BUTTON_SPACING
-    end
-    if modified then
-      buttonsWidth = buttonsWidth + getPresetButtonWidth('Reset') + PRESET_BUTTON_SPACING
+---@param preset BeamNGOrbitCameraPreset
+local function startCloningPreset(preset)
+  presetCloneConfig = {}
+  for key, value in pairs(preset.cameraConfig) do
+    presetCloneConfig[key] = value
+  end
+  local baseName = preset.name .. ' (Clone)'
+  local name = baseName
+  local suffix = 2
+  while presetNameTaken(name) do
+    name = baseName .. ' ' .. suffix
+    suffix = suffix + 1
+  end
+  presetRenameId = nil
+  presetNameDraft = name
+  focusPresetName = true
+end
+
+---@param renameId string?
+local function drawPresetNameRow(renameId)
+  ui.pushItemWidth(ui.availableSpaceX())
+  local focus = focusPresetName
+  if focus then
+    ui.setKeyboardFocusHere()
+    focusPresetName = false
+  end
+  ui.pushStyleVar(ui.StyleVar.FramePadding, presetEditorPadding)
+  local draft, _, submitted = ui.inputText(renameId and '##rename' .. renameId or '##clone', presetNameDraft or '')
+  ui.popStyleVar()
+  ui.popItemWidth()
+  if focus then ui.setScrollHereY(0.5) end
+  local outsideClick = not ui.itemHovered()
+    and (ui.mouseClicked(ui.MouseButton.Left) or ui.mouseClicked(ui.MouseButton.Right))
+  if outsideClick or ui.keyPressed(ui.Key.Escape) then
+    presetCloneConfig = nil
+    presetRenameId = nil
+    presetNameDraft = nil
+    return
+  end
+  presetNameDraft = draft
+  local name = draft:match('^%s*(.-)%s*$') or ''
+  local nameError = getPresetNameError(name, renameId)
+  if nameError then
+    if ui.itemHovered() or ui.itemActive() or submitted then ui.setTooltip(nameError) end
+    if submitted then focusPresetName = true end
+  elseif submitted then
+    if renameId then
+      renamePreset(renameId --[[@as string]], name)
+    elseif presetCloneConfig then
+      saveCurrentPreset(name, presetCloneConfig)
     end
   end
-  ui.pushItemWidth(math.max(80, ui.availableSpaceX() - buttonsWidth))
-  if presetNameDraft ~= nil and presetRenameId == nil then
+end
+
+local function drawPresetSelector()
+  if presetNameDraft ~= nil and presetRenameId == nil and presetCloneConfig == nil then
+    local buttonsWidth = getPresetButtonWidth('Save') + getPresetButtonWidth('Cancel') + 2 * PRESET_BUTTON_SPACING
+    ui.pushItemWidth(math.max(80, ui.availableSpaceX() - buttonsWidth))
     if focusPresetName then
       ui.setKeyboardFocusHere()
       focusPresetName = false
     end
     local _, submitted
     presetNameDraft, _, submitted = ui.inputText('##cameraPresetName', presetNameDraft --[[@as string]])
+    local cancelled = ui.keyPressed(ui.Key.Escape)
     ui.popItemWidth()
-    local name = presetNameDraft:match('^%s*(.-)%s*$') or ''
-    local nameError = getPresetNameError(name, presetRenameId)
     local saveClicked = drawPresetButton('Save')
     local cancelClicked = drawPresetButton('Cancel')
-    if cancelClicked then
+    submitted = submitted or saveClicked
+    cancelled = cancelled or cancelClicked
+    local name = presetNameDraft:match('^%s*(.-)%s*$') or ''
+    local nameError = getPresetNameError(name, presetRenameId)
+    if cancelled then
       presetNameDraft = nil
       presetRenameId = nil
-    elseif (saveClicked or submitted) and not nameError then
+      presetCloneConfig = nil
+    elseif submitted and not nameError then
       saveCurrentPreset(name)
     elseif nameError then
       ui.textColored(nameError, MODIFIED_PARAM_COLOR)
     end
     return
   end
-  local comboHeight = ui.frameHeight()
-  presetComboFramePadding:set(0, (comboHeight - ui.textLineHeight()) * 0.5)
-  ui.pushStyleVar(ui.StyleVar.WindowPadding, PRESET_ROW_PADDING)
-  ui.pushStyleVar(ui.StyleVar.FramePadding, presetComboFramePadding)
-  ui.pushStyleVar(ui.StyleVar.PopupBorderSize, 0)
-  local popupBackground = ui.styleColor(ui.StyleColor.PopupBg):clone()
-  popupBackground.r = popupBackground.r * 0.8
-  popupBackground.g = popupBackground.g * 0.8
-  popupBackground.b = popupBackground.b * 0.8
-  ui.pushStyleColor(ui.StyleColor.PopupBg, popupBackground)
+
+  local modified = hasCameraChanges()
+  local selected = getSelectedPreset()
+  local canUpdate = modified and selected and selected.id ~= DEFAULT_PRESET_ID
+  local buttonsWidth = 0.0
+  if canUpdate then buttonsWidth = buttonsWidth + getPresetButtonWidth('Save') + PRESET_BUTTON_SPACING end
+  if modified then buttonsWidth = buttonsWidth + getPresetButtonWidth('Reset') + PRESET_BUTTON_SPACING end
+  ui.pushItemWidth(math.max(80, ui.availableSpaceX() - buttonsWidth))
   if modified then ui.pushFont(ui.Font.Italic) end
-  local comboOpen = ui.beginCombo('##cameraPresets', ' ' .. getSelectedPresetName())
-  ui.popStyleColor()
-  ui.popStyleVar()
-  ui.popStyleVar()
-  ui.popStyleVar()
+  local comboOpen = ui.beginCombo('##cameraPresets', getSelectedPresetName())
   ---@type string?
   local presetToSelect = nil
   ---@type string?
   local presetToDelete = nil
   ---@type BeamNGOrbitCameraPreset?
   local presetToRename = nil
+  ---@type BeamNGOrbitCameraPreset?
+  local presetToClone = nil
   if comboOpen then
     if modified then ui.pushFont(ui.Font.Main) end
-    ui.pushStyleVar(ui.StyleVar.ItemSpacing, PRESET_ROW_SPACING)
-    ui.pushStyleVar(ui.StyleVar.SelectablePadding, PRESET_ROW_PADDING)
-    ui.pushStyleVar(ui.StyleVar.SelectableTextAlign, PRESET_ROW_TEXT_ALIGN)
-    local rowWidth = ui.availableSpaceX()
-    local rowHeight = ui.frameHeight()
-    presetRenameButtonSize:set(getPresetButtonWidth('Rename'), rowHeight)
-    presetDeleteButtonSize:set(getPresetButtonWidth('Delete'), rowHeight)
-    presetActionsButtonSize:set(getPresetButtonWidth('…'), rowHeight)
-    presetRenameSaveButtonSize:set(getPresetButtonWidth('Save'), rowHeight)
-    presetRenameCancelButtonSize:set(getPresetButtonWidth('Cancel'), rowHeight)
-    local anyRowHovered = false
+    local editingId = presetRenameId
+    local cloning = presetCloneConfig ~= nil
     for _, preset in ipairs(presets) do
-      local isSelected = preset.id == selectedPresetId
-      local canEdit = preset.id ~= DEFAULT_PRESET_ID
-      local renaming = presetRenameId == preset.id
-      local rowStart = ui.getCursor()
-      presetRowEnd:set(rowStart.x + rowWidth, rowStart.y + rowHeight)
-      local rowHovered = ui.rectHovered(rowStart, presetRowEnd)
-      anyRowHovered = anyRowHovered or rowHovered
-      if rowHovered and presetActionsId ~= preset.id then presetActionsId = nil end
-      local showActionsButton = canEdit and rowHovered and not renaming
-      local showActions = showActionsButton and presetActionsId == preset.id
-      local rowColor = ui.styleColor(rowHovered and ui.StyleColor.HeaderHovered or ui.StyleColor.Header)
-      if isSelected or rowHovered then ui.drawRectFilled(rowStart, presetRowEnd, rowColor) end
-      if renaming then
-        local inputWidth = rowWidth - presetRenameSaveButtonSize.x - presetRenameCancelButtonSize.x
-        ui.pushItemWidth(inputWidth)
-        if focusPresetName then
-          ui.setKeyboardFocusHere()
-          focusPresetName = false
-        end
-        local _, submitted
-        presetNameDraft, _, submitted = ui.inputText('##renamePreset' .. preset.id, presetNameDraft --[[@as string]])
-        ui.popItemWidth()
-        local name = presetNameDraft:match('^%s*(.-)%s*$') or ''
-        local nameError = getPresetNameError(name, presetRenameId)
-        ui.sameLine(0, 0)
-        local saveClicked = ui.button('Save###savePresetName' .. preset.id, presetRenameSaveButtonSize)
-        ui.sameLine(0, 0)
-        local cancelClicked = ui.button('Cancel###cancelPresetName' .. preset.id, presetRenameCancelButtonSize)
-        if cancelClicked then
-          presetNameDraft = nil
-          presetRenameId = nil
-        elseif (saveClicked or submitted) and not nameError then
-          renamePreset(preset.id, name)
-        elseif nameError then
-          ui.textColored(nameError, MODIFIED_PARAM_COLOR)
-        end
+      if editingId == preset.id then
+        drawPresetNameRow(editingId)
+      elseif editingId or cloning then
+        ui.selectable(preset.name .. '###' .. preset.id, preset.id == selectedPresetId, ui.SelectableFlags.Disabled)
       else
-        presetRowSize:set(showActions
-          and rowWidth - presetRenameButtonSize.x - presetDeleteButtonSize.x - presetActionsButtonSize.x
-          or showActionsButton and rowWidth - presetActionsButtonSize.x
-          or rowWidth, rowHeight)
-        ui.pushStyleColor(ui.StyleColor.Header, PRESET_TRANSPARENT_BACKGROUND)
-        ui.pushStyleColor(ui.StyleColor.HeaderHovered, PRESET_TRANSPARENT_BACKGROUND)
-        ui.pushStyleColor(ui.StyleColor.HeaderActive, PRESET_TRANSPARENT_BACKGROUND)
-        if ui.selectable(' ' .. preset.name .. '###' .. preset.id, isSelected, ui.SelectableFlags.None, presetRowSize) then
+        if ui.selectable(preset.name .. '###' .. preset.id, preset.id == selectedPresetId) then
           presetToSelect = preset.id
         end
-        ui.popStyleColor()
-        ui.popStyleColor()
-        ui.popStyleColor()
-        if showActions then
-          ui.sameLine(0, 0)
-          if ui.button('Rename###renamePreset' .. preset.id, presetRenameButtonSize) then
+        if ui.beginPopupContextItem('presetContext' .. preset.id, ui.MouseButton.Right) then
+          if preset.id ~= DEFAULT_PRESET_ID and ui.menuItem('Rename', false, ui.SelectableFlags.DontClosePopups) then
             presetToRename = preset
-            presetActionsId = nil
+            ui.closePopup()
           end
-          ui.sameLine(0, 0)
-          if ui.button('Delete###deletePreset' .. preset.id, presetDeleteButtonSize) then
-            presetToDelete = preset.id
-            presetActionsId = nil
+          if ui.menuItem('Clone', false, ui.SelectableFlags.DontClosePopups) then
+            presetToClone = preset
+            ui.closePopup()
           end
-        end
-        if showActionsButton then
-          ui.sameLine(0, 0)
-          if ui.button('…###presetActions' .. preset.id, presetActionsButtonSize) then
-            if presetActionsId == preset.id then
-              presetActionsId = nil
-            else
-              presetActionsId = preset.id
-            end
-          end
+          if preset.id ~= DEFAULT_PRESET_ID and ui.menuItem('Delete') then presetToDelete = preset.id end
+          ui.endPopup()
         end
       end
     end
-    if not anyRowHovered then presetActionsId = nil end
-    ui.popStyleVar()
-    ui.popStyleVar()
-    ui.popStyleVar()
+    if cloning then drawPresetNameRow(nil) end
     if modified then ui.popFont() end
-    if presetToDelete then ui.closePopup() end
     ui.endCombo()
-  else
-    presetActionsId = nil
-    if presetRenameId ~= nil then
-      presetNameDraft = nil
-      presetRenameId = nil
-      focusPresetName = false
-    end
+  elseif presetRenameId or presetCloneConfig then
+    presetCloneConfig = nil
+    presetRenameId = nil
+    presetNameDraft = nil
+    focusPresetName = false
   end
   if modified then ui.popFont() end
   ui.popItemWidth()
   if presetToDelete then
     deletePreset(presetToDelete)
-    return
-  end
-  if presetToRename then
+  elseif presetToRename then
+    presetCloneConfig = nil
     presetRenameId = presetToRename.id
     presetNameDraft = presetToRename.name
     focusPresetName = true
-    return
-  end
-  if presetToSelect then
+  elseif presetToClone then
+    startCloningPreset(presetToClone)
+  elseif presetToSelect then
     selectPreset(presetToSelect)
-    return
   end
   if canUpdate and drawPresetButton('Save') then updateCurrentPreset() end
   if modified and drawPresetButton('Reset') then resetCurrentPresetChanges() end
